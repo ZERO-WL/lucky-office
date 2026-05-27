@@ -1,0 +1,61 @@
+.DS_Store
+node_modules/
+
+# 各包构建产物（每次构建都会重新生成，不进库）
+core/packages/*/lib/
+# 但保留 exceljs 的 lib（本地化的 ExcelJS 源码就在 lib 目录）
+!core/packages/exceljs/lib/
+
+# exceljs 构建产物（dist/ 是 grunt build 生成的浏览器包）
+core/packages/exceljs/build/
+core/packages/exceljs/dist/
+
+# core 内的 ExcelJS 二次拷贝（postbuild 自动复制，无需入库）
+core/public/static/exceljs/
+
+# Vite / Vue CLI 构建输出
+core/dist/
+demo-vue3/dist/
+
+# pnpm / npm 缓存与日志
+.pnpm-store/
+**/.pnpm-state/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log
+
+# 本地 env
+.env
+.env.local
+.env.*.local
+
+# 编辑器 / IDE
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.iml
+
+# 系统垃圾
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# npm 凭据（含 publish token，禁止入库）
+# 注意：项目级 .npmrc 仅放置 pnpm 公共配置（shamefully-hoist 等），
+# 鉴权 token 一律放在用户级 ~/.npmrc，不会进入此仓库。
+.env.npm
+
+# 备份文件
+*.bak
+*.tmp
+
+# 测试输出
+coverage/
+*.lcov

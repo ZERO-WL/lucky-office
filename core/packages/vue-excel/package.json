@@ -1,0 +1,70 @@
+{
+  "name": "@lucky-office/excel",
+  "version": "0.1.0",
+  "description": "基于 vue-office 二次开发的 Vue Excel 预览组件，支持 .xlsx/.xls 渲染、OLE 附件预览/下载/拖拽、单元格选择等能力。",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib/"
+  ],
+  "scripts": {
+    "clean": "shx rm -rf lib",
+    "copyFile3": "shx cp lib/v3/lucky-office-excel.umd.js lib/v3/index.js && shx cp src/index.css lib/v3/index.css",
+    "copyType": "shx cp index.d.ts lib/index.d.ts",
+    "copyReadme": "shx cp README.md lib/README.md",
+    "copyScripts": "shx mkdir -p lib/script && shx cp ../../script/postinstall.js lib/script/postinstall.js && shx cp ../../script/switch-cli.js lib/script/switch-cli.js && shx cp ../../script/utils.js lib/script/utils.js",
+    "build:3": "node node_modules/vue-demi/bin/vue-demi-switch 3 vue3 && vite build && npm run copyFile3",
+    "build": "npm run clean && npm run build:3 && npm run copyScripts && npm run copyReadme && npm run copyType",
+    "postinstall": "node -e \"if(require('fs').existsSync('lib/script/postinstall.js')){require('child_process').execSync('node lib/script/postinstall.js')}else{console.log('lib/script/postinstall.js not found, skipping postinstall')}\""
+  },
+  "devDependencies": {
+    "@babel/plugin-transform-runtime": "^7.29.0",
+    "@babel/plugin-transform-template-literals": "^7.27.1",
+    "@babel/preset-env": "^7.29.5",
+    "@babel/runtime": "^7.23.6",
+    "@rollup/plugin-babel": "^6.0.3",
+    "@vitejs/plugin-vue": "^4.0.0",
+    "@vue/compiler-sfc": "3.2.45",
+    "shx": "^0.3.4",
+    "terser": "^5.47.1",
+    "vite": "^8.0.12",
+    "vite-plugin-vue2": "^2.0.3",
+    "vue-demi": "^0.14.10",
+    "vue-template-compiler": "2.6.14",
+    "vue2": "npm:vue@2.6.14",
+    "vue3": "npm:vue@3.2.45"
+  },
+  "peerDependencies": {
+    "vue": "^3.0.0",
+    "vue-demi": "^0.14.6"
+  },
+  "peerDependenciesMeta": {},
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:ZERO-WL/lucky-office.git"
+  },
+  "homepage": "https://github.com/ZERO-WL/lucky-office#readme",
+  "bugs": {
+    "url": "https://github.com/ZERO-WL/lucky-office/issues"
+  },
+  "keywords": [
+    "vue",
+    "excel",
+    "xlsx",
+    "xls",
+    "excel-preview",
+    "lucky-office",
+    "vue-office",
+    "ole-attachment"
+  ],
+  "dependencies": {
+    "@lucky-office/exceljs": "workspace:*",
+    "jszip": "^3.10.1"
+  },
+  "license": "MIT",
+  "author": "zhangwenli",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

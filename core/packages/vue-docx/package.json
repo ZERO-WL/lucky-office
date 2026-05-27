@@ -1,0 +1,50 @@
+{
+  "name": "@lucky-office/docx",
+  "version": "0.1.0",
+  "description": "基于 vue-office 二次开发的 Vue Word（.docx）预览组件，底层基于 docx-preview。",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib/"
+  ],
+  "scripts": {
+    "clean": "shx rm -rf lib",
+    "copyFile3": "shx cp lib/v3/lucky-office-docx.umd.js lib/v3/index.js && shx cp lib/v3/style.css lib/v3/index.css",
+    "copyType": "shx cp index.d.ts lib/index.d.ts",
+    "copyReadme": "shx cp README.md lib/README.md",
+    "copyScripts": "shx mkdir -p lib/script/ && shx cp ../../script/postinstall.js lib/script/postinstall.js && shx cp ../../script/switch-cli.js lib/script/switch-cli.js  && shx cp ../../script/utils.js lib/script/utils.js",
+    "build:3": "npx vue-demi-switch 3 vue3 && vite build && npm run copyFile3",
+    "build": "npm run clean && npm run build:3 && npm run copyScripts && npm run copyReadme && npm run copyType",
+    "postinstall": "node -e \"if(require('fs').existsSync('lib/script/postinstall.js')){require('child_process').execSync('node lib/script/postinstall.js')}else{console.log('lib/script/postinstall.js not found, skipping postinstall')}\""
+  },
+  "devDependencies": {
+    "shx": "^0.3.4"
+  },
+  "peerDependencies": {
+    "vue": "^3.0.0",
+    "vue-demi": "^0.14.6"
+  },
+  "peerDependenciesMeta": {},
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:ZERO-WL/lucky-office.git"
+  },
+  "homepage": "https://github.com/ZERO-WL/lucky-office#readme",
+  "bugs": {
+    "url": "https://github.com/ZERO-WL/lucky-office/issues"
+  },
+  "keywords": [
+    "vue",
+    "docx",
+    "docx-preview",
+    "word",
+    "lucky-office",
+    "vue-office"
+  ],
+  "license": "MIT",
+  "author": "zhangwenli",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

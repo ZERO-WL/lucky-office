@@ -1,0 +1,10 @@
+packages:
+  - "core"
+  - "core/packages/*"
+allowBuilds:
+  core-js: true
+  esbuild: true
+  husky: true
+  puppeteer: true
+  vue-demi: true
+  x-data-spreadsheet: true

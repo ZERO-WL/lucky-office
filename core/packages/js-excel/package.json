@@ -1,0 +1,47 @@
+{
+  "name": "@lucky-office/js-excel",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "基于 vue-office 二次开发的框架无关 Excel 预览库（vanilla JS / UMD）。",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib/"
+  ],
+  "scripts": {
+    "clean": "shx rm -rf lib",
+    "copyReadme": "shx cp README.md lib/README.md",
+    "copyType": "shx cp index.d.ts lib/index.d.ts",
+    "copyCss": "shx cp ./index.css ./lib/index.css",
+    "copy": "npm run copyCss && npm run copyType && npm run copyReadme",
+    "build": "npm run clean && rollup --config rollup.config.js && npm run copy"
+  },
+  "devDependencies": {
+    "shx": "^0.3.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:ZERO-WL/lucky-office.git"
+  },
+  "homepage": "https://github.com/ZERO-WL/lucky-office#readme",
+  "bugs": {
+    "url": "https://github.com/ZERO-WL/lucky-office/issues"
+  },
+  "keywords": [
+    "excel",
+    "xlsx",
+    "xls",
+    "excel-preview",
+    "lucky-office",
+    "vue-office"
+  ],
+  "license": "MIT",
+  "author": "zhangwenli",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "dependencies": {
+    "@lucky-office/exceljs": "workspace:*"
+  }
+}
