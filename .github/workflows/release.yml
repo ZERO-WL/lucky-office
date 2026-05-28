@@ -23,9 +23,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
-      contents: write     # 创建 Version PR、commit changelog、打 tag
-      pull-requests: write
-      id-token: write     # npm provenance
+      contents: write       # 创建 Version PR、commit changelog、打 tag
+      pull-requests: write  # 创建/更新 Version PR
+      id-token: write       # OIDC：让 npm 通过 Trusted Publisher 信任本 workflow
 
     steps:
       - name: Checkout
@@ -41,30 +41,35 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          # OIDC Trusted Publisher 需要 npm CLI >= 11.5.1，对应 Node.js >= 24
+          # （Node 22 自带 npm 10.x，发包时会拿不到 OIDC 凭据）
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
           cache: 'pnpm'
+
+      - name: Bump npm to latest (OIDC support)
+        # Node 24 自带的 npm 通常是 11.x，但保险起见显式升一下，确保 OIDC 流程稳定
+        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
-      - name: Configure npm authentication
-        run: echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-
       # 手动 dry-run：跑构建 + changeset publish --dry-run
+      # 注意：dry-run 不会真正调用 npm publish，所以 OIDC 凭据不会被消费
       - name: Dry-run publish
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}
         run: |
           pnpm -C core run lib
           pnpm changeset publish --dry-run
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       # 正式流程：交给 changesets/action
       #   - 如果 .changeset/ 下还有未消化的 changeset 文件 → 开 / 更新 "Version Packages" PR
       #   - 如果 PR 已经合并（即 changeset 文件被消化）→ 自动跑 publishCommand 发布到 npm
+      #
+      # 鉴权方式：OIDC Trusted Publisher
+      #   - 不需要 NPM_TOKEN，npm CLI 11.5.1+ 会自动从 GitHub Actions 环境拿 OIDC token
+      #   - 前提：在 npmjs.com 各包的 Access 页面已经配置好 Trusted Publisher 指向本 repo + workflow
+      #   - 详见 https://docs.npmjs.com/trusted-publishers
       - name: Create Release Pull Request or Publish
         if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false) }}
         id: changesets
@@ -75,12 +80,6 @@ jobs:
           commit: 'chore(release): version packages'
           title: 'chore(release): version packages'
         env:
+          # 仅 GITHUB_TOKEN 用于开 Version PR；publish 走 OIDC 不需要 NPM_TOKEN
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          # 暂时关闭 npm provenance 验证。
-          # 原因：monorepo 场景下 npm registry 在校验 provenance 签名时，
-          # 会比对 package.json 的 repository.directory 字段与签名 source 的实际路径，
-          # 不一致就返回 404 'package is not in this registry'。
-          # 我们已经在各 package.json 中补上了 directory 字段，但为稳妥起见先
-          # 关掉 provenance 一次性把 0.2.0 发出去，后续若要重新开启再独立验证。
-          # NPM_CONFIG_PROVENANCE: 'true'
+          # OIDC + Trusted Publisher 模式下，publish 自带 provenance（无需手动设置 NPM_CONFIG_PROVENANCE）
