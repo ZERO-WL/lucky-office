@@ -37,6 +37,7 @@ lerna-debug.log
 # 编辑器 / IDE
 .idea/
 .vscode/
+.trae/
 *.suo
 *.ntvs*
 *.njsproj
