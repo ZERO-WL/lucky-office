@@ -576,27 +576,40 @@ export default defineComponent({
         }
         
         function getAttachmentIconPath(iconType) {
+            // 与 media.js 中 getIconBaseUrl() 保持一致：
+            // - 优先使用宿主项目通过 window.__LUCKY_OFFICE_ICON_BASE__ 自定义的路径
+            // - 否则走当前页面的 import.meta.env.BASE_URL，约定图标放在 static/icons/ 下
+            let base = '/static/icons/';
+            if (typeof window !== 'undefined' && window.__LUCKY_OFFICE_ICON_BASE__) {
+                base = window.__LUCKY_OFFICE_ICON_BASE__;
+            } else {
+                try {
+                    const envBase = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.BASE_URL) || '/';
+                    base = envBase.endsWith('/') ? `${envBase}static/icons/` : `${envBase}/static/icons/`;
+                } catch (e) {
+                    // 保留默认 /static/icons/
+                }
+            }
             const iconMap = {
-                'word': '/vue-office/examples/dist/static/icons/WORD.png',
-                'excel': '/vue-office/examples/dist/static/icons/ECEL.png',
-                'pdf': '/vue-office/examples/dist/static/icons/PDF.png',
-                'ppt': '/vue-office/examples/dist/static/icons/PPT.png',
-                'zip': '/vue-office/examples/dist/static/icons/ZIP.png',
-                'csv': '/vue-office/examples/dist/static/icons/CSV.png',
-                'ole': '/vue-office/examples/dist/static/icons/附件-其他附件.png',
-                'unknown': '/vue-office/examples/dist/static/icons/附件-其他附件.png'
+                'word': `${base}WORD.png`,
+                'excel': `${base}ECEL.png`,
+                'pdf': `${base}PDF.png`,
+                'ppt': `${base}PPT.png`,
+                'zip': `${base}ZIP.png`,
+                'csv': `${base}CSV.png`,
+                'ole': `${base}附件-其他附件.png`,
+                'unknown': `${base}附件-其他附件.png`
             };
             return iconMap[iconType] || iconMap.unknown;
         }
         
         // 处理附件点击
         function handleAttachmentClick(attachment) {
-            console.log('附件被点击:', attachment);
+            // 由外部消费 attachment 选中事件即可，无需在此打日志
         }
         
         // 处理下载
         function handleDownload(attachment) {
-            console.log('下载附件:', attachment);
             downloadOLEObject(attachment);
         }
         

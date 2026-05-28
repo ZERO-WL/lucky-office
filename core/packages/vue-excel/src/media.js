@@ -5,26 +5,50 @@ let defaultColWidth = 80;
 let defaultRowHeight = 24;
 let devicePixelRatio = window.devicePixelRatio || 1;
 
+// 图标缓存：value 可能是 HTMLImageElement（加载成功）或 null（加载失败已尝试过，不再重试）
+// 用 attachmentIcons.hasOwnProperty(type) 判断是否已经尝试过加载，避免死循环
 const attachmentIcons = {};
 
+// 图标基础路径：宿主项目可以通过设置 `window.__LUCKY_OFFICE_ICON_BASE__` 自定义。
+// 默认走当前页面的 BASE_URL（Vite 注入），并约定图标放在 `static/icons/` 下。
+// 找不到图标时会自动降级为 Canvas 内画的彩色字母图标（drawFileIcon），不会阻塞渲染。
+function getIconBaseUrl() {
+    if (typeof window !== 'undefined' && window.__LUCKY_OFFICE_ICON_BASE__) {
+        return window.__LUCKY_OFFICE_ICON_BASE__;
+    }
+    // import.meta.env.BASE_URL 在 Vite/Webpack 5+ 环境下都被支持
+    try {
+        const base = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.BASE_URL) || '/';
+        return base.endsWith('/') ? `${base}static/icons/` : `${base}/static/icons/`;
+    } catch (e) {
+        return '/static/icons/';
+    }
+}
+
+function buildIconMap() {
+    const base = getIconBaseUrl();
+    return {
+        word: `${base}WORD.png`,
+        excel: `${base}ECEL.png`,
+        pdf: `${base}PDF.png`,
+        ppt: `${base}PPT.png`,
+        zip: `${base}ZIP.png`,
+        csv: `${base}CSV.png`,
+        ole: `${base}附件-其他附件.png`,
+        unknown: `${base}附件-其他附件.png`
+    };
+}
+
 function loadAttachmentIcon(type) {
-    if (attachmentIcons[type]) {
+    // 已经尝试过（无论成功还是失败），直接返回缓存，避免死循环
+    if (Object.prototype.hasOwnProperty.call(attachmentIcons, type)) {
         return Promise.resolve(attachmentIcons[type]);
     }
     
-    const iconMap = {
-        word: '/vue-office/examples/dist/static/icons/WORD.png',
-        excel: '/vue-office/examples/dist/static/icons/ECEL.png',
-        pdf: '/vue-office/examples/dist/static/icons/PDF.png',
-        ppt: '/vue-office/examples/dist/static/icons/PPT.png',
-        zip: '/vue-office/examples/dist/static/icons/ZIP.png',
-        csv: '/vue-office/examples/dist/static/icons/CSV.png',
-        ole: '/vue-office/examples/dist/static/icons/附件-其他附件.png',
-        unknown: '/vue-office/examples/dist/static/icons/附件-其他附件.png'
-    };
-    
+    const iconMap = buildIconMap();
     const iconSrc = iconMap[type] || iconMap.unknown;
     if (!iconSrc) {
+        attachmentIcons[type] = null;
         return Promise.resolve(null);
     }
     
@@ -35,7 +59,9 @@ function loadAttachmentIcon(type) {
             resolve(img);
         };
         img.onerror = () => {
-            console.warn(`Failed to load icon: ${iconSrc}`);
+            // 关键：失败也要缓存（为 null），避免下次又来加载 → 又失败 → 又触发重绘 → 死循环
+            console.warn(`[vue-excel] Failed to load attachment icon (will fall back to canvas-drawn icon): ${iconSrc}`);
+            attachmentIcons[type] = null;
             resolve(null);
         };
         img.src = iconSrc;
@@ -58,62 +84,30 @@ export function renderImage(ctx, medias, sheet, offset, options={}){
 
 }
 
-// 附件图标路径映射
-const attachmentIconPaths = {
-    word: '/vue-office/examples/dist/static/icons/WORD.png',
-    excel: '/vue-office/examples/dist/static/icons/ECEL.png',
-    pdf: '/vue-office/examples/dist/static/icons/PDF.png',
-    ppt: '/vue-office/examples/dist/static/icons/PPT.png',
-    zip: '/vue-office/examples/dist/static/icons/ZIP.png',
-    csv: '/vue-office/examples/dist/static/icons/CSV.png',
-    ole: '/vue-office/examples/dist/static/icons/附件-其他附件.png'
-};
+// 附件图标路径映射（已废弃，所有图标解析走 buildIconMap() / getIconBaseUrl()）
 
 export function renderAttachments(ctx, sheet, offset, options={}) {
     try {
-        console.log('=== renderAttachments 被调用 ===');
-        console.log('ctx:', ctx);
-        console.log('sheet:', sheet);
-        console.log('sheet.name:', sheet?.name);
-        console.log('sheet.attachments:', sheet?.attachments);
-        console.log('sheet._media:', sheet?._media);
-        
-        if (!ctx) {
-            console.log('renderAttachments: ctx is null');
-            return;
-        }
-        
-        if (!sheet) {
-            console.log('renderAttachments: sheet is null');
+        if (!ctx || !sheet) {
             return;
         }
         
         if (!sheet?.attachments || sheet.attachments.length === 0) {
-            console.log('renderAttachments: 没有附件数据');
             return;
         }
         
-        console.log('=== 开始渲染附件 ===');
-        console.log('总附件数:', sheet.attachments.length);
-        
-        let renderedCount = 0;
         // 把 offset 注入 options，供 renderAttachmentIcon / calcPosition 取滚动信息
         const mergedOptions = { ...options, offset };
         // 遍历附件并渲染 - 只有有range信息的才渲染在画布上
         sheet.attachments.forEach((attachment, index) => {
             if (!attachment.range) {
-                console.log(`跳过附件 ${index}: 没有位置信息，不在画布上渲染`, attachment.name);
+                // 没有位置信息的附件不在画布上渲染（通常在外部列表中展示）
                 return;
             }
-            
-            console.log(`渲染附件 ${index}:`, attachment);
             renderAttachmentIcon(ctx, attachment, index, sheet, mergedOptions);
-            renderedCount++;
         });
-        
-        console.log(`=== 附件渲染完成，共渲染 ${renderedCount} 个 ===`);
     } catch (error) {
-        console.error('renderAttachments error:', error);
+        console.error('[vue-excel] renderAttachments error:', error);
     }
 }
 
@@ -188,7 +182,6 @@ function renderAttachmentIcon(ctx, attachment, index, sheet, options) {
   try {
     // 检查是否有range信息，没有的话不应该在这里渲染
     if (!attachment.range) {
-      console.log('renderAttachmentIcon: 附件没有range信息，跳过画布渲染', attachment.name);
       return;
     }
     
@@ -263,10 +256,12 @@ function renderAttachmentIcon(ctx, attachment, index, sheet, options) {
     attachment._renderInfo.height = cardHeight / devicePixelRatio;
     
     const iconType = attachment.iconType || attachment.type || 'unknown';
+    // 用 hasOwnProperty 判断"是否已经尝试过加载"，避免对加载失败的 null 反复重试导致死循环
+    const triedLoad = Object.prototype.hasOwnProperty.call(attachmentIcons, iconType);
     const cachedImg = attachmentIcons[iconType];
     
-    // 如果图标未缓存，先异步加载并触发重绘
-    if (!cachedImg) {
+    // 如果图标从未尝试加载过，先异步加载并触发重绘；加载失败也会缓存 null，下次进入这里 triedLoad=true 直接走降级
+    if (!triedLoad) {
       loadAttachmentIcon(iconType).then(() => {
         // 触发外部重绘（通过 options 传入的 onIconLoaded 回调）
         if (typeof options.onIconLoaded === 'function') {
