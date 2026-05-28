@@ -6,7 +6,7 @@
   "scripts": {
     "changeset": "changeset",
     "ci:version": "changeset version",
-    "ci:release": "pnpm -C core run lib && changeset publish",
+    "publish:npm": "pnpm -C core run lib && changeset publish",
     "vite:build": "pnpm -C core run build"
   },
   "workspaces": [

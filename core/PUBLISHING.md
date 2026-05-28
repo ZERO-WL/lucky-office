@@ -1,18 +1,21 @@
 # 发布说明（Publishing Guide）
 
 > 本文档面向 lucky-office 维护者，介绍如何把 8 个包发布到 npm。
-> changesets 命令在仓库根执行，本地一键脚本命令在 `lucky-office/core/` 目录下执行。
+> changesets 命令在仓库根执行，本地一键脚本命令在仓库根目录执行。
 
 ## 推荐流程概览
 
-本仓库提供两套互补的发布流程：
+**当前发布策略：CI 维护版本号，本地手动发包**
 
-| 流程 | 触发方式 | 适用场景 |
-|---|---|---|
-| **changesets 自动发布**（推荐） | 提 changeset → push 到 main → 合并 PR | 日常迭代、多人协作、自动维护 CHANGELOG |
-| **一键脚本本地发布** | 在本地跑 `pnpm run release` | 紧急修复、无 GitHub Actions 时的兜底 |
+| 阶段 | 在哪里执行 | 触发方式 | 说明 |
+|---|---|---|---|
+| 写 changeset 描述 | 本地 | `pnpm changeset` | 描述本次改动是 patch / minor / major |
+| 开 Version PR | **CI 自动** | push 到 main 触发 | 自动 bump 版本号、生成 CHANGELOG |
+| 发布到 npm | **本地手动** | `pnpm run publish:npm` | 跑构建 + changeset publish |
 
-> 两套流程指向同一组 npm 包，互不冲突。但同一版本号只能发一次，注意别两边同时发。
+> 历史上曾尝试 CI 全自动发包（NPM_TOKEN / OIDC Trusted Publisher），但在 monorepo + 首次发布 + provenance 的组合下踩了大量"伪装成 404 的 ACL 错误"。为了把精力放在产品迭代上，把 publish 这一步移回本地手动执行——更可控、更稳定、零 token 管理负担。
+>
+> 如果未来想恢复 CI 自动发包，参考 `git log` 中 commit `feat(ci): switch npm publish to OIDC` 那次提交，并在 npm 上为 8 个包**逐个**配置 Trusted Publisher。
 
 ---
 
@@ -29,7 +32,7 @@
 | 7 | `@lucky-office/js-docx` | `core/packages/js-docx` | 框架无关 Word 预览库 |
 | 8 | `@lucky-office/js-pdf` | `core/packages/js-pdf` | 框架无关 PDF 预览库 |
 
-> 包之间存在依赖：`@lucky-office/excel`、`@lucky-office/js-excel` 都依赖 `@lucky-office/exceljs`（通过 `workspace:*` 协议），因此 **必须先发布 `exceljs`**。`pnpm publish` / `changeset publish` 都会自动按依赖图排序。
+> 包之间存在依赖：`@lucky-office/excel`、`@lucky-office/js-excel` 都依赖 `@lucky-office/exceljs`（通过 `workspace:*` 协议），因此 **必须先发布 `exceljs`**。`changeset publish` 会自动按依赖图排序。
 
 ---
 
@@ -41,11 +44,26 @@
 2. 创建组织 `lucky-office`：[https://www.npmjs.com/org/create](https://www.npmjs.com/org/create)
 3. 把账号加为组织成员
 
-### 2. 配置鉴权（推荐 Automation Token）
+### 2. 登录 npm（推荐：浏览器登录）
 
-npm 已经强制对 publish 启用 2FA，二选一：
+最简单稳定的方式：
 
-#### 方案 A：Automation Token（推荐，免输 OTP）
+```powershell
+npm login
+# 浏览器自动弹出 npmjs.com 登录页 → 完成认证 → 返回终端
+```
+
+`npm login` 用的是用户级 session，写入 `~/.npmrc`，**完全不踩 token 各种坑**。
+
+验证：
+```powershell
+npm whoami
+# 输出: zhangwenli
+```
+
+### 3.（可选）配置 Automation Token
+
+如果你希望脚本化、不想每次都浏览器登录：
 
 1. 浏览器登录 npm → 头像 → **Access Tokens** → **Generate New Token** → **Classic Token** → 选 **Automation**（自带 bypass 2FA）
 2. 复制 Token（形如 `npm_xxxxxxxxx`，关闭页面后无法再查看）
@@ -68,18 +86,15 @@ npm 已经强制对 publish 启用 2FA，二选一：
 1. 在 npm 网站启用 **Two-Factor Authentication**（Auth & writes 模式）
 2. 发布时通过 `--otp=123456` 或 `--otp-prompt` 提供 6 位动态码
 
-### 3. 配置 GitHub Secret（用于自动发布）
+### 3. 配置 GitHub Secret（已不再需要）
 
-仓库 → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**：
+历史上为了 Actions 自动 publish 需要在仓库 Secrets 配 `NPM_TOKEN`，**现在已经移除这个步骤**。Actions 只用默认的 `GITHUB_TOKEN`（自动可用，无需配置）维护 Version PR。
 
-- **Name**：`NPM_TOKEN`
-- **Value**：上一步签发的 Automation Token
-
-> Actions 会用这个 token 鉴权，所以**强烈建议用 Automation Token 而不是普通 Classic Token**。
+> 如果你仓库里还遗留旧的 `NPM_TOKEN` Secret，可以放心删除（Settings → Secrets and variables → Actions → 删除）。
 
 ---
 
-## 三、Changesets 工作流（推荐）
+## 三、Changesets 工作流
 
 本仓库使用 [Changesets](https://github.com/changesets/changesets) 管理版本与 changelog。
 配置：[../.changeset/config.json](../.changeset/config.json) — 8 个包通过 `fixed` 字段绑定为统一版本号。
@@ -111,7 +126,7 @@ git push
 
 ### 3.2 自动开 Version PR
 
-push 到 main 后，[GitHub Actions](../.github/workflows/release.yml) 中的 `changesets/action` 会：
+push 到 main 后，[Release workflow](../.github/workflows/release.yml) 中的 `changesets/action` 会：
 
 1. 扫描 `.changeset/` 下所有未消化的 `.md` 文件
 2. 自动开（或更新）一个标题为 **"chore(release): version packages"** 的 PR
@@ -120,16 +135,32 @@ push 到 main 后，[GitHub Actions](../.github/workflows/release.yml) 中的 `c
    - 把每个 `core/packages/*/package.json` 的 `version` bump
    - 在每个包目录下生成 / 更新各自的 `CHANGELOG.md`
 
-### 3.3 合并 PR → 自动发布
+### 3.3 合并 PR → 本地手动发布
 
-合并 "Version Packages" PR 后，Actions 会再次触发：
+合并 "Version Packages" PR 后：
 
-1. 检测到 `.changeset/` 已无未消化文件
-2. 跑 `pnpm ci:release` = 构建所有包 + `changeset publish`
-3. `changeset publish` 自动按依赖顺序 publish 到 npm（无需 `workspace:*` 替换烦恼）
-4. 自动打 git tag `vX.Y.Z` 并推送
+```bash
+# 1. 拉到最新的 main（包含 bump 后的版本号 + 新 CHANGELOG）
+git checkout main
+git pull
 
-> 注意：本仓库**不再支持「推送 v* tag 自动发布」这种触发方式**。Release workflow 现在只监听 `push: branches: [main]` 与手动触发。tag 由 changesets 在合并 Version PR 后自动打，无需手工 `git tag`。
+# 2.（首次或重新登录时）登录 npm
+npm whoami           # 已登录 → 跳过
+npm login            # 未登录 → 浏览器扫码完成
+
+# 3. 一键发布所有未发布的版本（自动构建 + 按依赖排序 publish + 打 tag）
+pnpm run publish:npm
+```
+
+`publish:npm` 实际跑：
+```
+pnpm -C core run lib && changeset publish
+```
+
+- `pnpm -C core run lib`：构建 8 个包（产物到各 `lib/`）
+- `changeset publish`：检测本地未发布版本 → 按依赖顺序 publish → 自动打 git tag `vX.Y.Z` → push tag
+
+> ⚠️ `changeset publish` 默认会执行 `git push --follow-tags`，所以本地 git 远程必须是可推的（HTTPS or 已配 SSH key）。
 
 ### 3.4 本地预演
 
@@ -159,11 +190,22 @@ pnpm changeset publish --dry-run
 
 ---
 
-## 四、本地一键发布脚本（兜底）
+## 四、本地兜底发布脚本
 
-发布脚本：[core/script/publish-all.js](./script/publish-all.js)
+这是从上游 vue-office 继承的兜底脚本机制，与 changesets 发布流程**并行存在**（互不影响）。
+一般情况下，推荐用 `pnpm run publish:npm`（changesets 路线），它会自动处理版本 bump、changelog、tag 等。
 
-### 已注册的 npm scripts（在 `core/package.json`）
+### 何时用兜底脚本
+
+- 你已经通过 changeset publish 成功发布，但个别包遗漏（罕见）
+- 需要单独发布某一个或几个包（跳过 changeset 流程）
+- 想在 `changeset publish` 之前 dry-run 验证（推荐用它）
+
+### 脚本文件与命令
+
+脚本：[core/script/publish-all.js](./script/publish-all.js)
+
+命令在 `core/package.json`：
 
 | 命令 | 作用 |
 |---|---|

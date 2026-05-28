@@ -176,12 +176,14 @@ pnpm run lib:vue-excel        # 单独构建某个包
 
 ## 📤 发布到 npm
 
-> **维护者向**：发布流程、Token 配置、changesets 工作流、版本管理建议等完整说明在 [`core/PUBLISHING.md`](./core/PUBLISHING.md)。
+> **维护者向**：完整的发布操作指南、Token 配置说明、版本管理建议见 [`core/PUBLISHING.md`](./core/PUBLISHING.md)。
 
-本仓库使用 [Changesets](https://github.com/changesets/changesets) 管理版本与 changelog，日常迭代只需：
+本仓库使用 [Changesets](https://github.com/changesets/changesets) 管理版本与 changelog，**版本号自动化由 CI 维护，发布动作由维护者手动执行**（更可控）。
+
+### 流程
 
 ```bash
-# 1. 改完代码，描述本次变更
+# 1. 写代码、写 changeset 描述本次变更
 pnpm changeset
 
 # 2. 把 .changeset/*.md 和代码改动一起提交
@@ -190,15 +192,34 @@ git commit -m "feat: ..."
 git push
 ```
 
-push 后 [GitHub Actions](./.github/workflows/release.yml) 会自动开「Version Packages」PR；合并 PR 即自动 publish 到 npm 并打 git tag。
+Push 后 [Release workflow](./.github/workflows/release.yml) 自动开「**Version Packages**」PR，里面包含 bump 后的 `version` 和生成的 `CHANGELOG.md`。
 
-如果需要本地紧急发布，也可以用兜底脚本：
+### 手动发布步骤（仅维护者）
+
+合并 Version PR 后，由维护者本地执行：
 
 ```bash
-cd lucky-office/core
-pnpm run release:dry          # Dry-run 预演
-pnpm run release              # 正式发布
+# 1. 拉到最新的 main
+git pull
+
+# 2. 登录 npm（一次即可，session 保存在 ~/.npmrc）
+npm login
+
+# 3. 一键发布所有未发布的版本（含构建）
+pnpm run publish:npm
 ```
+
+> ✅ 这条命令会跑 `pnpm -C core run lib` 构建 8 个包，然后用 `changeset publish` 按依赖顺序逐个发到 npm，并自动打 git tag。
+
+### 为什么不走 CI 自动发包？
+
+简短答：踩坑成本太高，本地手动发反而更稳定。
+
+详细见 [`core/PUBLISHING.md`](./core/PUBLISHING.md)。简要原因：
+- npm Granular Token 在 monorepo + 首次发布场景有"伪装成 404"的 ACL bug
+- Classic Automation Token 已被 npm 逐步下线
+- OIDC Trusted Publisher 需要对**每个**包单独配置 + Workflow / repo 完全对齐，配置一处错全失败
+- 本地 `npm login` 走的是用户级 session，最稳定、零配置
 
 ## 📜 更新日志
 
