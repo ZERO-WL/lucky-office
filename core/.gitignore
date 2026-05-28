@@ -20,6 +20,8 @@ pnpm-debug.log*
 *.njsproj
 *.sln
 *.sw?
-packages/**/lib
-packages/**/README.md
-pnpm-lock.yaml
+
+# 注意：以下规则曾经存在但已删除，由仓库根 .gitignore 统一管理：
+#   packages/**/lib       —— 各包构建产物
+#   packages/**/README.md —— 上游遗留规则，会误把仓库内的 README 文档全部忽略
+#   pnpm-lock.yaml        —— monorepo 锁文件在根目录
