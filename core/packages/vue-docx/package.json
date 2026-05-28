@@ -1,6 +1,6 @@
 {
   "name": "@lucky-office/docx",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "基于 vue-office 二次开发的 Vue Word（.docx）预览组件，底层基于 docx-preview。",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
