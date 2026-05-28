@@ -2,6 +2,15 @@
 
 > ExcelJS 的独立维护版本，用于 lucky-office（基于 [vue-office](https://github.com/501351981/vue-office) 二次开发）项目的 Excel 文件解析。
 
+## 🌐 在线 Demo
+
+本包作为底层依赖，无独立 demo。可通过其上层消费方查看效果：
+
+- [`@lucky-office/excel`](https://zero-wl.github.io/lucky-office/#/excel)（Vue 3 Excel 预览组件）
+- [`@lucky-office/js-excel`](https://zero-wl.github.io/lucky-office/#/js-excel)（框架无关 Excel 预览库）
+
+> 演示站默认加载一个带 OLE 嵌入附件的样例 xlsx，能直观看到本 fork 增强后的 OLE 解析能力。
+
 ## 说明
 
 此包是 [ExcelJS](https://github.com/exceljs/exceljs) 的 fork 版本，已整合到 lucky-office 项目的 pnpm monorepo 工作区中进行独立维护。

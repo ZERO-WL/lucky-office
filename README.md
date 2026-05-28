@@ -5,9 +5,28 @@
 
 [![CI](https://github.com/ZERO-WL/lucky-office/actions/workflows/ci.yml/badge.svg)](https://github.com/ZERO-WL/lucky-office/actions/workflows/ci.yml)
 [![Release](https://github.com/ZERO-WL/lucky-office/actions/workflows/release.yml/badge.svg)](https://github.com/ZERO-WL/lucky-office/actions/workflows/release.yml)
+[![Deploy Pages](https://github.com/ZERO-WL/lucky-office/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/ZERO-WL/lucky-office/actions/workflows/deploy-pages.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D14-blue.svg)](https://nodejs.org/)
 [![pnpm](https://img.shields.io/badge/pnpm-%3E%3D7-orange.svg)](https://pnpm.io/)
+
+---
+
+## 🌐 在线 Demo
+
+> 演示站基于本仓库 `core/src/` 演示项目，由 GitHub Actions 自动部署到 GitHub Pages，永远跟 `main` 分支最新代码同步。
+
+**入口**：[https://zero-wl.github.io/lucky-office/](https://zero-wl.github.io/lucky-office/)
+
+| 包 | 路由 | 直链 |
+|---|---|---|
+| `@lucky-office/excel`（含 OLE 附件交互） | `#/excel` | [👉 打开](https://zero-wl.github.io/lucky-office/#/excel) |
+| `@lucky-office/docx` | `#/docx` | [👉 打开](https://zero-wl.github.io/lucky-office/#/docx) |
+| `@lucky-office/pdf` | `#/pdf` | [👉 打开](https://zero-wl.github.io/lucky-office/#/pdf) |
+| `@lucky-office/pptx` | `#/pptx` | [👉 打开](https://zero-wl.github.io/lucky-office/#/pptx) |
+| `@lucky-office/js-excel` | `#/js-excel` | [👉 打开](https://zero-wl.github.io/lucky-office/#/js-excel) |
+| `@lucky-office/js-docx` | `#/js-docx` | [👉 打开](https://zero-wl.github.io/lucky-office/#/js-docx) |
+| `@lucky-office/js-pdf` | `#/js-pdf` | [👉 打开](https://zero-wl.github.io/lucky-office/#/js-pdf) |
 
 ---
 

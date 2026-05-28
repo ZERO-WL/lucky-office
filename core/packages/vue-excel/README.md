@@ -2,6 +2,12 @@
 
 > 基于 [vue-office](https://github.com/501351981/vue-office) 二次开发：使用 Canvas（x-spreadsheet）的 Vue 组件，用于在浏览器中预览 `.xlsx / .xls` 文件，支持单元格样式、合并单元格、图片、附件（OLE 对象）、附件卡片选中 / 拖拽 / 预览 / 下载等能力。
 
+## 🌐 在线 Demo
+
+👉 [https://zero-wl.github.io/lucky-office/#/excel](https://zero-wl.github.io/lucky-office/#/excel)
+
+> 默认加载一个带 OLE 嵌入附件（Word / Excel / PDF）的样例 xlsx，可点击附件卡片体验选中 / 拖拽 / 预览 / 下载交互。
+
 ## 特性
 
 - 支持 Vue 2 / Vue 3（通过 `vue-demi` 适配）

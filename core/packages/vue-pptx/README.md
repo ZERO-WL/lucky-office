@@ -2,6 +2,10 @@
 
 > 基于 [vue-office](https://github.com/501351981/vue-office) 二次开发：用于在浏览器中预览 `.pptx` 文件的 Vue 组件。
 
+## 🌐 在线 Demo
+
+👉 [https://zero-wl.github.io/lucky-office/#/pptx](https://zero-wl.github.io/lucky-office/#/pptx)
+
 ## 特性
 
 - 支持 Vue 2 / Vue 3（通过 `vue-demi` 适配）

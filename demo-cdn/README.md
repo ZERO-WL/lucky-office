@@ -4,6 +4,14 @@
 
 > 这是给「不想引入打包工具，只想在原生 HTML 里用一下预览能力」的用户看的入门示例。
 
+## 🌐 想直接看在线效果？
+
+如果只是想看预览效果，无需 clone 本仓库，可直接访问基于 Vue 3 演示项目的在线 Demo：
+
+- [Excel 预览](https://zero-wl.github.io/lucky-office/#/excel) / [Word 预览](https://zero-wl.github.io/lucky-office/#/docx) / [PDF 预览](https://zero-wl.github.io/lucky-office/#/pdf) / [PPT 预览](https://zero-wl.github.io/lucky-office/#/pptx)
+
+本目录下的 HTML 示例则演示了"不用任何打包工具，纯 `<script>` 引入 UMD"的极简集成方式，适合在传统页面里快速嵌入预览能力。
+
 ## 内容
 
 - [`docx.html`](./docx.html) — Word 预览

@@ -2,6 +2,10 @@
 
 > 基于 [vue-office](https://github.com/501351981/vue-office) 二次开发：基于 [pdf.js] 封装的 Vue 组件，用于在浏览器中预览 `.pdf` 文件。
 
+## 🌐 在线 Demo
+
+👉 [https://zero-wl.github.io/lucky-office/#/pdf](https://zero-wl.github.io/lucky-office/#/pdf)
+
 ## 特性
 
 - 支持 Vue 2 / Vue 3（通过 `vue-demi` 适配）

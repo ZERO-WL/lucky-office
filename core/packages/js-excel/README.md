@@ -2,6 +2,12 @@
 
 > 基于 [vue-office](https://github.com/501351981/vue-office) 二次开发：框架无关（vanilla JS / UMD）的 `.xlsx / .xls` 预览器，通过 `init(container, options)` 挂载到任意 DOM 节点上。底层与 `@lucky-office/excel` 共用解析逻辑（依赖 `@lucky-office/exceljs`）。
 
+## 🌐 在线 Demo
+
+👉 [https://zero-wl.github.io/lucky-office/#/js-excel](https://zero-wl.github.io/lucky-office/#/js-excel)
+
+> 也提供更简单的 CDN `<script>` 引用示例：[demo-cdn/excel.html](https://github.com/ZERO-WL/lucky-office/blob/main/demo-cdn/excel.html)
+
 ## 特性
 
 - 不依赖 Vue / React，纯 JS 即可使用
