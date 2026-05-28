@@ -1,0 +1,25 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.1.4/schema.json",
+  "changelog": [
+    "@changesets/changelog-github",
+    { "repo": "ZERO-WL/lucky-office" }
+  ],
+  "commit": false,
+  "fixed": [
+    [
+      "@lucky-office/exceljs",
+      "@lucky-office/excel",
+      "@lucky-office/docx",
+      "@lucky-office/pdf",
+      "@lucky-office/pptx",
+      "@lucky-office/js-excel",
+      "@lucky-office/js-docx",
+      "@lucky-office/js-pdf"
+    ]
+  ],
+  "linked": [],
+  "access": "public",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "ignore": []
+}

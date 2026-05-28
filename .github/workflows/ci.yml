@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build all packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm run lib
+        working-directory: core
+
+      - name: Verify build artifacts
+        run: |
+          set -e
+          for pkg in vue-excel vue-docx vue-pdf vue-pptx js-excel js-docx js-pdf; do
+            echo "=== checking core/packages/$pkg/lib ==="
+            test -d "core/packages/$pkg/lib" || (echo "::error::$pkg/lib missing" && exit 1)
+          done
+          echo "=== checking exceljs build ==="
+          test -d "core/packages/exceljs/lib" || (echo "::error::exceljs/lib missing" && exit 1)
+          echo "All build artifacts present ✅"

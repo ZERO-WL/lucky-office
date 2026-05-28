@@ -1,0 +1,34 @@
+{
+  "name": "lucky-office-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Lucky-Office monorepo root（基于 vue-office 二次开发，由 changesets 管理 8 个 @lucky-office/* 包的版本与发布）",
+  "scripts": {
+    "changeset": "changeset",
+    "ci:version": "changeset version",
+    "ci:release": "pnpm -C core run lib && changeset publish",
+    "vite:build": "pnpm -C core run build"
+  },
+  "workspaces": [
+    "core",
+    "core/packages/*"
+  ],
+  "devDependencies": {
+    "@changesets/changelog-github": "^0.7.0",
+    "@changesets/cli": "^2.31.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:ZERO-WL/lucky-office.git"
+  },
+  "homepage": "https://github.com/ZERO-WL/lucky-office#readme",
+  "bugs": {
+    "url": "https://github.com/ZERO-WL/lucky-office/issues"
+  },
+  "license": "MIT",
+  "author": "zhangwenli",
+  "engines": {
+    "node": ">=14",
+    "pnpm": ">=7"
+  }
+}

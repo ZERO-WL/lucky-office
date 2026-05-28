@@ -1,5 +1,5 @@
 <script>
-import { defineComponent, ref, onMounted, watch } from 'vue-demi';
+import { defineComponent, ref, onMounted, watch } from 'vue';
 import {init as initPptxPreviewer} from 'pptx-preview';
 
 export default defineComponent({

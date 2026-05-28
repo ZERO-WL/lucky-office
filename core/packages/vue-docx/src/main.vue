@@ -1,5 +1,5 @@
 <script>
-import {defineComponent, ref, onMounted, watch} from 'vue-demi';
+import {defineComponent, ref, onMounted, watch} from 'vue';
 import docx from './docx';
 import {download as downloadFile} from '../../../utils/url';
 

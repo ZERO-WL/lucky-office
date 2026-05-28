@@ -1,23 +1,23 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>pdf预览</title>
-    <script src="js-preview-lib/pdf.umd.js"></script>
+    <title>PDF 预览（CDN 引用 @lucky-office/js-pdf）</title>
+    <script src="https://unpkg.com/@lucky-office/js-pdf/lib/index.umd.js"></script>
 </head>
 <body>
 <div id="pdf"></div>
 
 <script>
     const myPdfPreviewer = jsPreviewPdf.init(document.getElementById('pdf'), {
-        onError: (e)=>{
-            console.log('发生错误', e)
+        onError: (e) => {
+            console.log('发生错误', e);
         },
-        onRendered: ()=>{
-            console.log('渲染完成')
+        onRendered: () => {
+            console.log('渲染完成');
         }
     });
-    myPdfPreviewer.preview('http://static.shanhuxueyuan.com/test.pdf')
+    myPdfPreviewer.preview('https://static.shanhuxueyuan.com/test.pdf');
 </script>
 </body>
 </html>

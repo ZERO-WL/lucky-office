@@ -1,23 +1,21 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>docx预览</title>
-    <link rel="stylesheet" href="js-preview-lib/docx.css" />
-    <script src="js-preview-lib/docx.umd.js"></script>
+    <title>Word（.docx）预览（CDN 引用 @lucky-office/js-docx）</title>
+    <link rel="stylesheet" href="https://unpkg.com/@lucky-office/js-docx/lib/index.css" />
+    <script src="https://unpkg.com/@lucky-office/js-docx/lib/index.umd.js"></script>
 </head>
 <body>
 <div id="docx"></div>
 
 <script>
     const myDocxPreviewer = jsPreviewDocx.init(document.getElementById('docx'));
-
-    //传递要预览的文件地址即可
-    myDocxPreviewer.preview('http://static.shanhuxueyuan.com/test.docx').then(()=>{
+    myDocxPreviewer.preview('https://static.shanhuxueyuan.com/test.docx').then(() => {
         console.log('预览完成');
-    }).catch(e=>{
+    }).catch(e => {
         console.log('预览失败', e);
-    })
+    });
 </script>
 </body>
 </html>

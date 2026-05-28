@@ -15,7 +15,9 @@ core/public/static/exceljs/
 
 # Vite / Vue CLI 构建输出
 core/dist/
-demo-vue3/dist/
+
+# 旧的上游构建产物目录（已废弃，不应再出现）
+examples/
 
 # pnpm / npm 缓存与日志
 .pnpm-store/

@@ -20,7 +20,7 @@ onMounted(() => {
         }
 
     });
-    window.myExcelPreview.preview('/vue-office/examples/dist/static/test-files/test.xlsx').then(_=>{
+    window.myExcelPreview.preview(`${import.meta.env.BASE_URL}static/test-files/test.xlsx`).then(_=>{
         // window.myExcelPreview.download();
         console.log('excel preview done', window.myExcelPreview);
     }).catch(err=>{

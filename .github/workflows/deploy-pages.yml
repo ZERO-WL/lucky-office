@@ -1,0 +1,87 @@
+name: Deploy Demo to GitHub Pages
+
+# 触发：
+#   - push 到 main（自动部署最新代码）
+#   - 手动触发
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'core/src/**'
+      - 'core/public/**'
+      - 'core/index.html'
+      - 'core/vite.config.js'
+      - 'core/packages/**'
+      - 'pnpm-workspace.yaml'
+      - 'package.json'
+      - '.github/workflows/deploy-pages.yml'
+  workflow_dispatch:
+
+# 同时只跑一个部署任务，避免并发把 Pages 弄乱
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build demo site
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build all @lucky-office/* packages
+        # demo 项目通过 ../packages/* 直接引用源码，但 vue-excel 的 OLE 解析需要 exceljs 构建产物
+        run: pnpm run lib
+        working-directory: core
+
+      - name: Build demo site
+        # VITE_BASE 对应 GitHub Pages 项目页路径：https://<user>.github.io/<repo>/
+        run: pnpm run build
+        working-directory: core
+        env:
+          VITE_BASE: /lucky-office/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: core/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

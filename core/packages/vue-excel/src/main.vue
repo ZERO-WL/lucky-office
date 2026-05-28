@@ -1,5 +1,5 @@
 <script>
-import {defineComponent, ref, onMounted, onBeforeUnmount, watch, nextTick} from 'vue-demi';
+import {defineComponent, ref, onMounted, onBeforeUnmount, watch, nextTick} from 'vue';
 import Spreadsheet from './x-spreadsheet/index';
 import {getData, readExcelData, transferExcelToSpreadSheet} from './excel';
 import {renderImage, renderAttachments, clearCache} from './media';

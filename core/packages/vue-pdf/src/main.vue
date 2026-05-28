@@ -1,5 +1,5 @@
 <script>
-import { defineComponent, ref, onMounted, watch, onBeforeUnmount } from 'vue-demi';
+import { defineComponent, ref, onMounted, watch, onBeforeUnmount } from 'vue';
 import workerStr from './worker?raw';
 import pdfjsLib from './pdf?raw';
 import { download as downloadFile, getUrl, loadScript } from '../../../utils/url';

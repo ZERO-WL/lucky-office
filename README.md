@@ -3,6 +3,8 @@
 > 基于 [vue-office](https://github.com/501351981/vue-office) 二次开发的 Office 文件预览解决方案。
 > 使用 pnpm monorepo 管理，将 ExcelJS 本地化为工作区子包，并在 vue-excel 上扩展了 OLE 附件的卡片化交互（选中、拖拽、预览、下载）。
 
+[![CI](https://github.com/ZERO-WL/lucky-office/actions/workflows/ci.yml/badge.svg)](https://github.com/ZERO-WL/lucky-office/actions/workflows/ci.yml)
+[![Release](https://github.com/ZERO-WL/lucky-office/actions/workflows/release.yml/badge.svg)](https://github.com/ZERO-WL/lucky-office/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D14-blue.svg)](https://nodejs.org/)
 [![pnpm](https://img.shields.io/badge/pnpm-%3E%3D7-orange.svg)](https://pnpm.io/)
@@ -126,7 +128,7 @@ lucky-office/
 │   ├── script/                    # 构建 / 发布脚本
 │   ├── PUBLISHING.md              # ⭐ 发布到 npm 的完整说明（仅维护者关心）
 │   └── package.json
-├── demo-vue3/                     # 独立的 Vue 3 示例项目
+├── demo-cdn/                      # 通过 unpkg CDN 引用 @lucky-office/js-* 的最简 HTML 示例
 ├── pnpm-workspace.yaml
 ├── LICENSE
 └── README.md                      # 本文档
@@ -155,18 +157,33 @@ pnpm run lib:vue-excel        # 单独构建某个包
 
 ## 📤 发布到 npm
 
-> **维护者向**：发布流程、Token 配置、一键脚本用法、版本管理建议等完整说明在 [`core/PUBLISHING.md`](./core/PUBLISHING.md)。
+> **维护者向**：发布流程、Token 配置、changesets 工作流、版本管理建议等完整说明在 [`core/PUBLISHING.md`](./core/PUBLISHING.md)。
 
-最常用的命令：
+本仓库使用 [Changesets](https://github.com/changesets/changesets) 管理版本与 changelog，日常迭代只需：
+
+```bash
+# 1. 改完代码，描述本次变更
+pnpm changeset
+
+# 2. 把 .changeset/*.md 和代码改动一起提交
+git add .
+git commit -m "feat: ..."
+git push
+```
+
+push 后 [GitHub Actions](./.github/workflows/release.yml) 会自动开「Version Packages」PR；合并 PR 即自动 publish 到 npm 并打 git tag。
+
+如果需要本地紧急发布，也可以用兜底脚本：
 
 ```bash
 cd lucky-office/core
-
-pnpm run release:dry          # Dry-run 预演（不会真发）
-pnpm run release              # 正式发布全部 8 个包
+pnpm run release:dry          # Dry-run 预演
+pnpm run release              # 正式发布
 ```
 
-发布脚本（[core/script/publish-all.js](./core/script/publish-all.js)）会按依赖顺序串行 publish，任一包失败立即终止。
+## 📜 更新日志
+
+每次发版的详细变更记录在 [CHANGELOG.md](./CHANGELOG.md)。
 
 ---
 

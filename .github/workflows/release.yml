@@ -1,0 +1,80 @@
+name: Release
+
+# 触发：
+#   - push 到 main：由 changesets/action 处理（开 Version PR / 合并后自动发版）
+#   - 手动触发：可选 dry-run
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '是否仅做 dry-run（不真正发布）'
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release with changesets
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write     # 创建 Version PR、commit changelog、打 tag
+      pull-requests: write
+      id-token: write     # npm provenance
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # changesets 需要完整 history
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Configure npm authentication
+        run: echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # 手动 dry-run：跑构建 + changeset publish --dry-run
+      - name: Dry-run publish
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}
+        run: |
+          pnpm -C core run lib
+          pnpm changeset publish --dry-run
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # 正式流程：交给 changesets/action
+      #   - 如果 .changeset/ 下还有未消化的 changeset 文件 → 开 / 更新 "Version Packages" PR
+      #   - 如果 PR 已经合并（即 changeset 文件被消化）→ 自动跑 publishCommand 发布到 npm
+      - name: Create Release Pull Request or Publish
+        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false) }}
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          version: pnpm changeset version
+          publish: pnpm ci:release
+          commit: 'chore(release): version packages'
+          title: 'chore(release): version packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: 'true'

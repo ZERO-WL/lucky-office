@@ -17,15 +17,11 @@ export default defineConfig({
       name: 'lucky-office-pdf',
       fileName: 'lucky-office-pdf',
     },
-    optimizeDeps: {
-      exclude: ['vue-demi']
-    },
     rollupOptions: {
-      external: ['vue-demi', 'vue'],
+      external: ['vue'],
       output: {
         globals: {
-          vue: 'Vue',
-          'vue-demi': 'VueDemi'
+          vue: 'Vue'
         },
       },
     },

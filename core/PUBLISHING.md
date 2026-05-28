@@ -1,7 +1,20 @@
 # 发布说明（Publishing Guide）
 
 > 本文档面向 lucky-office 维护者，介绍如何把 8 个包发布到 npm。
-> 命令默认在 `lucky-office/core/` 目录下执行。
+> changesets 命令在仓库根执行，本地一键脚本命令在 `lucky-office/core/` 目录下执行。
+
+## 推荐流程概览
+
+本仓库提供两套互补的发布流程：
+
+| 流程 | 触发方式 | 适用场景 |
+|---|---|---|
+| **changesets 自动发布**（推荐） | 提 changeset → push 到 main → 合并 PR | 日常迭代、多人协作、自动维护 CHANGELOG |
+| **一键脚本本地发布** | 在本地跑 `pnpm run release` | 紧急修复、无 GitHub Actions 时的兜底 |
+
+> 两套流程指向同一组 npm 包，互不冲突。但同一版本号只能发一次，注意别两边同时发。
+
+---
 
 ## 一、发布范围
 
@@ -16,7 +29,7 @@
 | 7 | `@lucky-office/js-docx` | `core/packages/js-docx` | 框架无关 Word 预览库 |
 | 8 | `@lucky-office/js-pdf` | `core/packages/js-pdf` | 框架无关 PDF 预览库 |
 
-> 包之间存在依赖：`@lucky-office/excel`、`@lucky-office/js-excel` 都依赖 `@lucky-office/exceljs`（通过 `workspace:*` 协议），因此 **必须先发布 `exceljs`，否则依赖方在 npm 上找不到对应版本**。
+> 包之间存在依赖：`@lucky-office/excel`、`@lucky-office/js-excel` 都依赖 `@lucky-office/exceljs`（通过 `workspace:*` 协议），因此 **必须先发布 `exceljs`**。`pnpm publish` / `changeset publish` 都会自动按依赖图排序。
 
 ---
 
@@ -55,11 +68,100 @@ npm 已经强制对 publish 启用 2FA，二选一：
 1. 在 npm 网站启用 **Two-Factor Authentication**（Auth & writes 模式）
 2. 发布时通过 `--otp=123456` 或 `--otp-prompt` 提供 6 位动态码
 
+### 3. 配置 GitHub Secret（用于自动发布）
+
+仓库 → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**：
+
+- **Name**：`NPM_TOKEN`
+- **Value**：上一步签发的 Automation Token
+
+> Actions 会用这个 token 鉴权，所以**强烈建议用 Automation Token 而不是普通 Classic Token**。
+
 ---
 
-## 三、一键发布脚本
+## 三、Changesets 工作流（推荐）
 
-发布脚本位置：[core/script/publish-all.js](./script/publish-all.js)
+本仓库使用 [Changesets](https://github.com/changesets/changesets) 管理版本与 changelog。
+配置：[../.changeset/config.json](../.changeset/config.json) — 8 个包通过 `fixed` 字段绑定为统一版本号。
+
+### 3.1 日常开发：提 changeset
+
+每次提交带变更代码时，一并描述本次改动：
+
+```bash
+# 在仓库根执行
+cd d:\my-code\my-lucky-office\lucky-office
+pnpm changeset
+```
+
+交互界面会让你：
+
+1. 选哪些包受影响（按空格选中，回车确认）
+   - 因为配了 `fixed`，选任意一个包都会让 8 个包一起升
+2. 选 bump 级别：`major` / `minor` / `patch`
+3. 写一段 markdown 描述
+
+执行后会在 `.changeset/` 下生成一个 `xxx-yyy-zzz.md` 文件，**和代码改动一起 commit**：
+
+```bash
+git add .changeset/*.md src/...
+git commit -m "feat(excel): 增加附件批量预览支持"
+git push
+```
+
+### 3.2 自动开 Version PR
+
+push 到 main 后，[GitHub Actions](../.github/workflows/release.yml) 中的 `changesets/action` 会：
+
+1. 扫描 `.changeset/` 下所有未消化的 `.md` 文件
+2. 自动开（或更新）一个标题为 **"chore(release): version packages"** 的 PR
+3. PR 内容：
+   - 删除已消化的 `.changeset/*.md`
+   - 把每个 `core/packages/*/package.json` 的 `version` bump
+   - 在每个包目录下生成 / 更新各自的 `CHANGELOG.md`
+
+### 3.3 合并 PR → 自动发布
+
+合并 "Version Packages" PR 后，Actions 会再次触发：
+
+1. 检测到 `.changeset/` 已无未消化文件
+2. 跑 `pnpm ci:release` = 构建所有包 + `changeset publish`
+3. `changeset publish` 自动按依赖顺序 publish 到 npm（无需 `workspace:*` 替换烦恼）
+4. 自动打 git tag `vX.Y.Z` 并推送
+
+> 注意：本仓库**不再支持「推送 v* tag 自动发布」这种触发方式**。Release workflow 现在只监听 `push: branches: [main]` 与手动触发。tag 由 changesets 在合并 Version PR 后自动打，无需手工 `git tag`。
+
+### 3.4 本地预演
+
+发布前可以在本地预演：
+
+```bash
+# 1. 看当前 changeset 状态
+pnpm changeset status
+
+# 2. 演练 bump 后的版本号 + CHANGELOG（会真的修改文件，记得用 git stash 还原）
+pnpm changeset version
+
+# 3. 演练 publish（不真发）
+pnpm changeset publish --dry-run
+```
+
+### 3.5 常见操作
+
+| 需求 | 命令 |
+|---|---|
+| 添加 changeset | `pnpm changeset` |
+| 查看待发布内容 | `pnpm changeset status` |
+| 查看 verbose 状态 | `pnpm changeset status --verbose` |
+| 删除一个 changeset 文件 | 直接 `rm .changeset/<name>.md` |
+| 修改某个 changeset 描述 | 直接编辑 `.changeset/<name>.md` |
+| 强制 bump 但不写 changelog | 创建空白 changeset，描述留空即可 |
+
+---
+
+## 四、本地一键发布脚本（兜底）
+
+发布脚本：[core/script/publish-all.js](./script/publish-all.js)
 
 ### 已注册的 npm scripts（在 `core/package.json`）
 
@@ -101,6 +203,9 @@ node script/publish-all.js --release --otp-prompt
 
 # 3) 中断后续发剩下的（不重发已发的）
 node script/publish-all.js --release --skip-build --only=vue-pdf,vue-pptx,js-excel,js-docx,js-pdf
+
+# 4) 仅发布单个包
+node script/publish-all.js --release --only=vue-excel --skip-build
 ```
 
 ### 脚本工作流
@@ -111,45 +216,6 @@ Step 2: 按依赖顺序串行 publish：
         exceljs → vue-excel → vue-docx → vue-pdf → vue-pptx
                 → js-excel → js-docx → js-pdf
         任一包失败立即终止（process.exit(1)），不会破坏依赖图
-```
-
----
-
-## 四、推荐发布流程
-
-### 首次发布
-
-```powershell
-cd d:\my-code\my-lucky-office\lucky-office\core
-
-# 1. 干净构建 + dry-run 预演
-pnpm run release:dry
-
-# 2. 检查 dry-run 输出无报错后正式发布
-pnpm run release         # 已配 Automation Token
-# 或者
-node script/publish-all.js --release --otp-prompt   # OTP 模式
-```
-
-### 后续版本发布
-
-```powershell
-# 1. 修改各包 package.json 的 version 字段（统一升）
-# 2. git commit + git tag
-git add .
-git commit -m "release: v0.2.0"
-git tag -a v0.2.0 -m "release: v0.2.0"
-git push origin main --tags
-
-# 3. 发布
-cd d:\my-code\my-lucky-office\lucky-office\core
-pnpm run release
-```
-
-### 仅发布单个包
-
-```powershell
-node script/publish-all.js --release --only=vue-excel --skip-build
 ```
 
 ---
@@ -179,41 +245,12 @@ npm pack --dry-run
 ```
 
 应包含：
-- `lib/v3/index.js`、`lib/v3/index.css`
-- `lib/index.d.ts`
-- `lib/script/postinstall.js`、`switch-cli.js`、`utils.js`
-- `lib/README.md`
+- `lib/index.js`、`lib/index.css`、`lib/index.d.ts`、`lib/README.md`
 - `package.json`、`LICENSE`、`README.md`
 
 ---
 
-## 六、版本号管理建议
-
-当前所有包都使用 `0.1.0`。后续推荐：
-
-- **patch 升级**（修 bug、文档）：所有包 `0.1.0 → 0.1.1`
-- **minor 升级**（加新 prop / 事件，向后兼容）：所有包 `0.1.0 → 0.2.0`
-- **major 升级**（破坏性改动）：所有包 `0.1.0 → 1.0.0`
-
-> 建议保持 8 个包**版本号同步升**，便于用户区分兼容性。如果以后想做精细化版本管理，可引入 [@changesets/cli](https://github.com/changesets/changesets)。
-
-批量改版本号的脚本（PowerShell）：
-
-```powershell
-$newVersion = "0.2.0"
-@(
-  "exceljs", "vue-excel", "vue-docx", "vue-pdf", "vue-pptx",
-  "js-excel", "js-docx", "js-pdf"
-) | ForEach-Object {
-  $pkg = "core\packages\$_\package.json"
-  (Get-Content $pkg) -replace '"version":\s*"[^"]+"', """version"": ""$newVersion""" | Set-Content $pkg
-  Write-Host "更新 $pkg → $newVersion"
-}
-```
-
----
-
-## 七、常见问题
+## 六、常见问题
 
 ### Q1: `403 Forbidden ... Two-factor authentication ... required`
 
@@ -225,18 +262,14 @@ $newVersion = "0.2.0"
 
 ### Q3: 用户安装后报 `Cannot find module @lucky-office/exceljs@workspace:*`
 
-→ 用了 `npm publish` 而不是 `pnpm publish`。pnpm 才会自动把 `workspace:*` 替换为已发布版本。本仓库的脚本始终用 `pnpm publish`，正常情况下不会遇到。如果误发了，吊销并重发：
+→ 用了 `npm publish` 而不是 `pnpm publish` / `changeset publish`。本仓库的脚本始终用 pnpm，正常情况下不会遇到。如果误发了，吊销并重发：
 
 ```powershell
 npm unpublish @lucky-office/excel@0.1.0 --force
 # npm 政策：发布 72 小时内可以撤包
 ```
 
-### Q4: 用户安装后报 `lib/script/postinstall.js not found`
-
-→ 构建时 `copyScripts` 步骤失败。检查 `core/script/` 下三个文件齐全：`postinstall.js`、`switch-cli.js`、`utils.js`。
-
-### Q5: 想发到内部 npm 镜像（私有源）
+### Q4: 想发到内部 npm 镜像（私有源）
 
 → 修改各包 `publishConfig.registry` 字段，例如：
 
@@ -251,9 +284,13 @@ npm unpublish @lucky-office/excel@0.1.0 --force
 
 ---
 
-## 八、相关链接
+## 七、相关链接
 
+- [Changesets 配置](../.changeset/config.json)
 - [一键发布脚本源码](./script/publish-all.js)
+- [GitHub Actions Release Workflow](../.github/workflows/release.yml)
+- [GitHub Actions CI Workflow](../.github/workflows/ci.yml)
+- [Changesets 官方文档](https://github.com/changesets/changesets)
 - [npm Publishing Packages 文档](https://docs.npmjs.com/cli/commands/npm-publish)
 - [pnpm publish 文档](https://pnpm.io/cli/publish)
 - [npm 2FA 与 Automation Token](https://docs.npmjs.com/about-access-tokens)

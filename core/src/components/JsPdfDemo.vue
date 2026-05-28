@@ -18,7 +18,7 @@ onMounted(() => {
             console.log('渲染完成')
         }
     });
-    window.myPdfPreview.preview('/vue-office/examples/dist/static/test-files/test.pdf')
+    window.myPdfPreview.preview(`${import.meta.env.BASE_URL}static/test-files/test.pdf`)
 
 
 });
