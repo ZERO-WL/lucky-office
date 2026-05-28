@@ -77,4 +77,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: 'true'
+          # 暂时关闭 npm provenance 验证。
+          # 原因：monorepo 场景下 npm registry 在校验 provenance 签名时，
+          # 会比对 package.json 的 repository.directory 字段与签名 source 的实际路径，
+          # 不一致就返回 404 'package is not in this registry'。
+          # 我们已经在各 package.json 中补上了 directory 字段，但为稳妥起见先
+          # 关掉 provenance 一次性把 0.2.0 发出去，后续若要重新开启再独立验证。
+          # NPM_CONFIG_PROVENANCE: 'true'

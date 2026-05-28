@@ -20,7 +20,8 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/ZERO-WL/lucky-office.git"
+    "url": "https://github.com/ZERO-WL/lucky-office.git",
+    "directory": "core/packages/js-pdf"
   },
   "homepage": "https://github.com/ZERO-WL/lucky-office#readme",
   "bugs": {
