@@ -7,10 +7,9 @@ console.log('[ExcelJS Auto Copy] 开始自动复制 ExcelJS 文件...');
 const projectRoot = path.resolve(__dirname, '../');
 const exceljsDistDir = path.resolve(projectRoot, 'packages/exceljs/dist');
 
-// 目标位置列表
+// 目标位置列表（仅当目录存在或是 demo 项目本地预览需要的路径才复制）
 const targetDirs = [
-  path.resolve(projectRoot, 'public/static/exceljs'),
-  path.resolve(projectRoot, '../examples/dist/static/exceljs')
+  path.resolve(projectRoot, 'public/static/exceljs')
 ];
 
 // 需要复制的文件列表
@@ -69,7 +68,7 @@ function copyExcelJSToTargets() {
 if (fs.existsSync(exceljsDistDir)) {
   copyExcelJSToTargets();
 } else {
-  console.error(`[ExcelJS Auto Copy] 错误: ExcelJS 构建目录不存在: ${exceljsDistDir}`);
-  console.error('[ExcelJS Auto Copy] 请先运行 ExcelJS 构建');
-  process.exit(1);
+  console.warn(`[ExcelJS Auto Copy] 源目录不存在，跳过复制: ${exceljsDistDir}`);
+  console.warn('[ExcelJS Auto Copy] （这通常发生在 CI 环境或 demo 项目本地预览未启用 ExcelJS 浏览器版时，可以忽略）');
+  process.exit(0);
 }

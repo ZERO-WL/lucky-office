@@ -5,33 +5,9 @@ import {getDarkColor, getLightColor} from './color';
 import dayjs from 'dayjs';
 import {read, write} from 'xlsx';
 import JSZip from 'jszip';
-
-let Excel = null;
-let excelLoadPromise = null;
-
-function loadExcelJS() {
-    if (Excel) {
-        return Promise.resolve(Excel);
-    }
-    if (excelLoadPromise) {
-        return excelLoadPromise;
-    }
-    
-    excelLoadPromise = new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = '/vue-office/examples/dist/static/exceljs/exceljs.js';
-        script.onload = () => {
-            Excel = window.ExcelJS;
-            resolve(Excel);
-        };
-        script.onerror = () => {
-            reject(new Error('Failed to load ExcelJS'));
-        };
-        document.head.appendChild(script);
-    });
-    
-    return excelLoadPromise;
-}
+// 直接 ES Module 引用本地化的 @lucky-office/exceljs（其 lib/ 是 Node.js 源码，
+// 含我们的 OLE 解析增强，Vite/Webpack 会自动 bundle 进打包产物，无需运行时 <script> 加载）
+import Excel from '@lucky-office/exceljs';
 
 const themeColor = [
     '#FFFFFF',
@@ -148,7 +124,6 @@ function requestExcel(src, options) {
 
 export async function readExcelData(buffer, xls){
     try {
-        const Excel = await loadExcelJS();
         if(xls){
             const workbook = read(buffer, {type: 'array'});
             buffer = write(workbook, { bookType: 'xlsx', type: 'array' });

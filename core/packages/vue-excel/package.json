@@ -25,6 +25,7 @@
     "shx": "^0.3.4",
     "terser": "^5.47.1",
     "vite": "^8.0.12",
+    "vite-plugin-node-polyfills": "^0.28.0",
     "vue": "3.2.45"
   },
   "peerDependencies": {

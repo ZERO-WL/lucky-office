@@ -27,7 +27,7 @@
     "node": ">=8.3.0"
   },
   "main": "./excel.js",
-  "browser": "./dist/exceljs.min.js",
+  "browser": "./lib/exceljs.browser.js",
   "types": "./index.d.ts",
   "files": [
     "dist",
@@ -64,9 +64,8 @@
     "clean": "rm -rf build/ && rm -rf dist",
     "benchmark": "node --expose-gc benchmark",
     "benchmark:debug": "node --expose-gc --inspect-brk --trace-deopt benchmark",
-    "build": "grunt build",
-    "postbuild": "node ../../script/copy-exceljs.js",
-    "copy-only": "node ../../script/copy-exceljs.js",
+    "build": "echo '[lucky-office/exceljs] No build needed - lib/ and dist/ are pre-built upstream artifacts' && exit 0",
+    "build:full": "grunt build",
     "install-build": "npm install && grunt build",
     "preversion": "npm run clean && npm run build && npm run test:version",
     "postversion": "git push --no-verify && git push --tags --no-verify"

@@ -31,6 +31,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
+      - name: Print environment info
+        run: |
+          node --version
+          pnpm --version
+          pnpm list -r --depth=-1 || true
+          echo "--- workspace check ---"
+          cat pnpm-workspace.yaml
+        working-directory: .
+
       - name: Build all packages
         run: pnpm run lib
         working-directory: core
