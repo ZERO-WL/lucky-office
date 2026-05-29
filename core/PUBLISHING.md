@@ -137,20 +137,30 @@ push 到 main 后，[Release workflow](../.github/workflows/release.yml) 中的 
 
 ### 3.3 合并 PR → 本地手动发布
 
+> ⚠️ **重要**：Version PR 在 CI 端把版本号 / changelog / lockfile 都改了，本地必须先 **`git pull`** 把这些更新同步到本地，再 **`pnpm install`** 让 `node_modules` 与新的 `pnpm-lock.yaml` 对齐；漏掉任何一步都可能发出错误版本号或构建失败。
+
 合并 "Version Packages" PR 后：
 
 ```bash
-# 1. 拉到最新的 main（包含 bump 后的版本号 + 新 CHANGELOG）
+# 1. 拉到最新的 main（包含 bump 后的版本号 + 新 CHANGELOG + 更新后的 pnpm-lock.yaml）
 git checkout main
-git pull
+git pull origin main
 
-# 2.（首次或重新登录时）登录 npm
+# 2. 让本地 node_modules 与刚拉下来的新 lockfile 对齐
+#    （Version PR 改了各包的 version 字段，workspace:* 链接也要重建）
+pnpm install
+
+# 3.（首次或重新登录时）登录 npm
 npm whoami           # 已登录 → 跳过
 npm login            # 未登录 → 浏览器扫码完成
 
-# 3. 一键发布所有未发布的版本（自动构建 + 按依赖排序 publish + 打 tag）
+# 4. 一键发布所有未发布的版本（自动构建 + 按依赖排序 publish + 打 tag）
 pnpm run publish:npm
 ```
+
+> 关于 `git pull` 与 `pnpm install` 的分工：
+> - **`git pull`** 才是"真正把 Version PR 改动同步到本地"的那一步——拉下来 `core/packages/*/package.json` 里 bump 后的 `version`、新写入的 `CHANGELOG.md`、以及消化掉的 `.changeset/*.md`。
+> - **`pnpm install`** 不会"拉取版本号"，它只是把本地 `node_modules` 与刚 pull 下来的 `pnpm-lock.yaml` 对齐（重要：workspace 内部 `workspace:*` 依赖的软链需要按新版本重建，否则 `pnpm run lib` 构建会用到旧版本号）。
 
 `publish:npm` 实际跑：
 ```
@@ -323,6 +333,27 @@ npm unpublish @lucky-office/excel@0.1.0 --force
 ```
 
 并在 `~/.npmrc` 添加对应 registry 的 token。
+
+### Q5: 合并完 Version PR 直接 `pnpm run publish:npm`，结果还是发了旧版本号
+
+→ 漏了 `git pull`。Version PR 的版本号 bump / `CHANGELOG.md` 写入 / `.changeset/*.md` 删除是 CI 在 PR 分支上完成、合并后才进入远端 `main` 的，本地必须执行：
+
+```powershell
+git checkout main
+git pull origin main   # ← 这步才真的把新版本号同步到本地
+pnpm install           # ← 同步 lockfile，重建 workspace:* 软链
+pnpm run publish:npm
+```
+
+只 `pnpm install` 不 `git pull` 等于啥也没拉。详见 [3.3 节](#33-合并-pr--本地手动发布)。
+
+### Q6: 合并完 Version PR 后构建失败 / 安装报 lockfile 不一致
+
+→ `git pull` 拿下来了新的 `pnpm-lock.yaml`，但本地 `node_modules` 还是旧版本。执行 `pnpm install` 即可对齐；如果还报 `ERR_PNPM_OUTDATED_LOCKFILE`，加 `--no-frozen-lockfile`：
+
+```powershell
+pnpm install --no-frozen-lockfile
+```
 
 ---
 
