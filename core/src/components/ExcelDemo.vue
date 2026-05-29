@@ -21,7 +21,7 @@ function transformData(data){
 
 const defaultSrc = location.origin +
     (location.pathname + '/').replace('//', '/')
-    + 'static/test-files/带附件.xlsx';
+    + 'static/test-files/超多列.xlsx';
 const docxRef = ref();
 
 function beforeTransformData(data){
@@ -65,6 +65,13 @@ function cellsSelected(event){
     console.log('选择了单元格', event)
 }
 
+function onProgressiveInitial(result){
+    console.log('[vue-excel demo progressive initial]', result && result.workbookData);
+}
+function onProgressiveProgress(progress){
+    console.log('[vue-excel demo progressive progress]', progress);
+}
+
 function onAttachmentPreview({ url, name, previewType }) {
     console.log('[attachment-preview]', name, previewType, url);
     if (previewType) {
@@ -92,7 +99,12 @@ function onAttachmentPreview({ url, name, previewType }) {
       <VueOfficeExcel
           ref="docxRef"
           :src="slotProps.src"
-          :options="{beforeTransformData, transformData, xls: slotProps.xls}"
+          :options="{beforeTransformData, transformData, xls: slotProps.xls, progressive: {
+              initialRows: 30,
+              batchRows: 100,
+              onInitialDataReady: onProgressiveInitial,
+              onProgress: onProgressiveProgress
+          }}"
           style="flex: 1;height: 0"
           v-loading="true"
           @rendered="onRendered"

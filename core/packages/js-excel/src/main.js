@@ -1,5 +1,5 @@
 import Spreadsheet from '../../vue-excel/src/x-spreadsheet/index';
-import {getData, readExcelData, transferExcelToSpreadSheet} from '../../vue-excel/src/excel';
+import {getData, readExcelData, transferExcelToSpreadSheet, transferExcelToSpreadSheetProgressive} from '../../vue-excel/src/excel';
 import {renderImage, clearCache} from '../../vue-excel/src/media';
 import {readOnlyInput} from '../../vue-excel/src/hack';
 import {debounce} from 'lodash';
@@ -112,16 +112,44 @@ class JsExcelPreview {
         const canvas = this.wrapperMain.querySelector('canvas');
         this.ctx = canvas.getContext('2d');
     }
-    renderExcel(buffer){
+    async renderExcel(buffer){
         this.fileData = buffer;
-        return readExcelData(buffer, this.options.xls).then(workbook => {
+        try {
+            let workbook = await readExcelData(buffer, this.options.xls);
             if (!workbook._worksheets || workbook._worksheets.length === 0) {
                 throw new Error('未获取到数据，可能文件格式不正确或文件已损坏');
             }
             if(this.options.beforeTransformData && typeof this.options.beforeTransformData === 'function' ){
                 workbook = this.options.beforeTransformData(workbook);
             }
-            let {workbookData, medias, workbookSource} = transferExcelToSpreadSheet(workbook, this.options);
+            // 注意：transferExcelToSpreadSheet 是 async function（需要等待 OLE 附件 docProps 提取等异步任务），
+            // 必须 await 解析后再解构，否则 workbookData 会是 undefined，
+            // 进而 this.xs.loadData(undefined) 触发 'Cannot read properties of undefined (reading name)' 报错。
+            const progressiveEnabled = !!this.options.progressive;
+            let {workbookData, medias, workbookSource} = await (progressiveEnabled ? transferExcelToSpreadSheetProgressive(workbook, {
+                ...this.options,
+                onInitialDataReady: (result) => {
+                    this.mediasSource = result.medias;
+                    this.workbookDataSource = result.workbookSource;
+                    this.offset = null;
+                    this.sheetIndex = 0;
+                    clearCache();
+                    this.xs.loadData(result.workbookData);
+                    renderImage(this.ctx, this.mediasSource,this.workbookDataSource._worksheets[this.sheetIndex], this.offset);
+                    if (this.options.progressive && typeof this.options.progressive.onInitialDataReady === 'function') {
+                        this.options.progressive.onInitialDataReady(result);
+                    }
+                },
+                onProgress: (progress) => {
+                    console.log('[js-excel progressive]', progress);
+                    this.xs.loadData(progress.workbookData);
+                    this.xs.reRender();
+                    renderImage(this.ctx, this.mediasSource,this.workbookDataSource._worksheets[this.sheetIndex], this.offset);
+                    if (this.options.progressive && typeof this.options.progressive.onProgress === 'function') {
+                        this.options.progressive.onProgress(progress);
+                    }
+                }
+            }) : transferExcelToSpreadSheet(workbook, this.options));
             if(this.options.transformData && typeof this.options.transformData === 'function' ){
                 workbookData = this.options.transformData(workbookData);
             }
@@ -132,16 +160,15 @@ class JsExcelPreview {
             clearCache();
             this.xs.loadData(workbookData);
             renderImage(this.ctx, this.mediasSource,this.workbookDataSource._worksheets[this.sheetIndex], this.offset);
-
-        }).catch(e => {
+        } catch (e) {
             this.mediasSource = [];
             this.workbookDataSource = {
                 _worksheets:[]
             };
             clearCache();
             this.xs.loadData({});
-            return Promise.reject(e);
-        });
+            throw e;
+        }
     }
     hack(){
         const observerCallback = debounce(readOnlyInput, 200).bind(this, this.wrapperMain);

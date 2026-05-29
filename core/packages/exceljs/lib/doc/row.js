@@ -43,9 +43,17 @@ class Row {
 
   // given {address, row, col}, find or create new cell
   getCellEx(address) {
+    // 防御性上限：Excel 实际最大列数为 16384（XFD）。
+    // 若 address.col 超出上限（如损坏文件），this._cells[address.col - 1] = cell
+    // 会让稀疏数组的 length 极长，进而拖慢 includeEmpty 模式下的遍历或触发 RangeError。
+    const MAX_COL = 16384;
+    if (address.col > MAX_COL) {
+      return {value: null, type: 0, style: {}};
+    }
     let cell = this._cells[address.col - 1];
     if (!cell) {
       const column = this._worksheet.getColumn(address.col);
+      if (!column) return {value: null, type: 0, style: {}};
       cell = new Cell(this, column, address.address);
       this._cells[address.col - 1] = cell;
     }
@@ -133,7 +141,8 @@ class Row {
       options = null;
     }
     if (options && options.includeEmpty) {
-      const n = this._cells.length;
+      // 防御性上限：避免 _cells 在异常文件中被撑成极长稀疏数组时遍历卡死。
+      const n = Math.min(this._cells.length, 16384);
       for (let i = 1; i <= n; i++) {
         iteratee(this.getCell(i), i);
       }

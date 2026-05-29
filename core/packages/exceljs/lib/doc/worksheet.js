@@ -255,6 +255,13 @@ class Worksheet {
     if (!this._columns) {
       this._columns = [];
     }
+    // 防御性上限：Excel 实际最大列数为 16384（XFD）。
+    // 极端损坏/异常文件可能产生超过该上限的列号，导致此处无限 push 创建 Column 对象、
+    // 进而引发 RangeError 或长时间卡死。超过上限时直接返回 undefined。
+    const MAX_COLUMN_COUNT = 16384;
+    if (c > MAX_COLUMN_COUNT) {
+      return undefined;
+    }
     if (c > this._columns.length) {
       let n = this._columns.length + 1;
       while (n <= c) {

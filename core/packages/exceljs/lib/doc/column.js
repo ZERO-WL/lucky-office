@@ -297,6 +297,10 @@ class Column {
     const columns = [];
     let count = 1;
     let index = 0;
+    // 防御性上限：Excel 实际最大列数为 16384（XFD）。
+    // 若 cols 中存在 max 极大（如损坏文件），将创建海量 Column 对象，
+    // 引发 RangeError 或长时间卡死，因此在创建过程中限制总数。
+    const MAX_COLUMN_COUNT = 16384;
     /**
      * sort cols by min
      * If it is not sorted, the subsequent column configuration will be overwritten
@@ -306,12 +310,13 @@ class Column {
     });
     while (index < cols.length) {
       const col = cols[index++];
-      while (count < col.min) {
+      while (count < col.min && count <= MAX_COLUMN_COUNT) {
         columns.push(new Column(worksheet, count++));
       }
-      while (count <= col.max) {
+      while (count <= col.max && count <= MAX_COLUMN_COUNT) {
         columns.push(new Column(worksheet, count++, col));
       }
+      if (count > MAX_COLUMN_COUNT) break;
     }
     return columns.length ? columns : null;
   }

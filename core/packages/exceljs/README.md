@@ -20,6 +20,10 @@
 - **包名**: 从 `exceljs` 改为 `@lucky-office/exceljs`
 - **维护方式**: 作为 lucky-office monorepo 的一部分进行独立维护
 - **依赖管理**: 使用 pnpm workspace 协议进行内部依赖链接
+- **解析鲁棒性增强（针对"超多列 / 整列范围数据验证"场景）**
+  - [`lib/xlsx/xform/sheet/data-validations-xform.js`](./lib/xlsx/xform/sheet/data-validations-xform.js)：当单条 `sqref` 展开 cell 数超过阈值（如 `A2:A1048576` 这类整列范围）时，改为按原 sqref 字符串整体保存，不再逐 cell 落入 `model`，避免触发 V8 `RangeError: Too many properties to enumerate` 或长时间卡死
+  - [`lib/doc/worksheet.js`](./lib/doc/worksheet.js)（`getColumn`）、[`lib/doc/column.js`](./lib/doc/column.js)（`fromModel`）、[`lib/doc/row.js`](./lib/doc/row.js)（`getCellEx` / `eachCell`）：跨极大列号时按 Excel 实际列上限 16384 防御，避免创建/枚举海量对象
+  - 全部为"超阈值才生效"的防御性上限，未改变公共 API，对常规文件零影响
 
 ## 安装
 

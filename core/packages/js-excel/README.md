@@ -58,6 +58,31 @@ previewer.preview('https://example.com/test.xlsx').then(() => {
 | `minColLength`      | `Number`  | 最小列数 |
 | `minRowLength`      | `Number`  | 最小行数 |
 | `showContextmenu`   | `Boolean` | 是否显示右键菜单 |
+| `progressive`       | `Object \| false` | 可选的渐进式转换路径，开启后先把首屏前 N 行交给 `x-spreadsheet` 渲染，剩余行按批次继续转换并在批次间让出主线程。默认关闭，不传时行为完全不变 |
+
+#### `options.progressive` 字段
+
+> 仅在大文件预览时显式开启；常规文件无需关心。
+
+| 名称                  | 类型       | 默认  | 说明 |
+|-----------------------|-----------|------|------|
+| `initialRows`         | `Number`  | `30` | 首屏立即转换并加载的行数 |
+| `batchRows`           | `Number`  | `100`| 后续每批继续转换的行数 |
+| `onInitialDataReady`  | `Function`| -    | 首批数据 ready 时回调，参数 `{ workbookData, medias, workbookSource }` |
+| `onProgress`          | `Function`| -    | 每个批次完成后的进度回调 |
+
+```js
+const previewer = jsPreviewExcel.init(container, {
+    progressive: {
+        initialRows: 30,
+        batchRows: 100,
+        onInitialDataReady(result){ console.log('首屏 ready', result.workbookData); },
+        onProgress(progress){ console.log('批次进度', progress); }
+    }
+});
+```
+
+> 解析阶段（`wb.xlsx.load(buffer)`）失败时控制台会输出 `[excel parse]` 结构化日志（`phase / name / message / elapsedMs / bufferLength / stack`），便于把解析阶段错误与后续转换/渲染阶段错误区分开；`preview()` 返回的 Promise reject 行为不变。
 
 ### 实例方法
 

@@ -123,6 +123,7 @@ function requestExcel(src, options) {
 }
 
 export async function readExcelData(buffer, xls){
+    const t0 = Date.now();
     try {
         if(xls){
             const workbook = read(buffer, {type: 'array'});
@@ -141,7 +142,15 @@ export async function readExcelData(buffer, xls){
         return workbook;
 
     }catch (e){
-        console.warn(e);
+        // 结构化错误日志：用于定位解析阶段（wb.xlsx.load）的卡死/RangeError 等问题
+        console.error('[excel parse]', {
+            phase: 'parse',
+            name: e && e.name,
+            message: e && e.message,
+            elapsedMs: Date.now() - t0,
+            bufferLength: (buffer && (buffer.byteLength || buffer.length)) || 0,
+            stack: e && e.stack ? e.stack.split('\n').slice(0, 5).join('\n') : undefined
+        });
         return Promise.reject(e);
     }
 }
@@ -374,6 +383,112 @@ function getStyle(cell){
     return cell.style;
 }
 
+function createSheetData(sheet){
+    return { name: sheet.name,styles : [], rows: {},cols:{}, merges:[],media:[], attachments: [] };
+}
+
+function collectMergeAddressData(sheet, sheetData){
+    let mergeAddressData = [];
+    for(let mergeRange in sheet._merges) {
+        sheetData.merges.push(sheet._merges[mergeRange].shortRange);
+        let mergeAddress = {};
+        mergeAddress.startAddress = sheet._merges[mergeRange].tl;
+        mergeAddress.endAddress = sheet._merges[mergeRange].br;
+        mergeAddress.YRange = sheet._merges[mergeRange].model.bottom - sheet._merges[mergeRange].model.top;
+        mergeAddress.XRange = sheet._merges[mergeRange].model.right - sheet._merges[mergeRange].model.left;
+        mergeAddressData.push(mergeAddress);
+    }
+    return mergeAddressData;
+}
+
+function transferRowsRange(sheet, sheetData, mergeAddressData, options, startRow, endRow, initialEffectiveMaxColLen = 0){
+    let effectiveMaxColLen = initialEffectiveMaxColLen;
+    const rows = sheet._rows || [];
+    const safeStartRow = Math.max(startRow || 0, 0);
+    const safeEndRow = Math.min(typeof endRow === 'number' ? endRow : rows.length, rows.length);
+    for(let spreadSheetRowIndex = safeStartRow; spreadSheetRowIndex < safeEndRow; spreadSheetRowIndex++){
+        const row = rows[spreadSheetRowIndex];
+        if(!row){
+            continue;
+        }
+        sheetData.rows[spreadSheetRowIndex] = { cells: {} };
+        if(row._hidden){
+            sheetData.rows[spreadSheetRowIndex].height = 0.1;
+            sheetData.rows[spreadSheetRowIndex].hide = true;
+        }else if(row.height){
+            sheetData.rows[spreadSheetRowIndex].height = row.height + (options.heightOffset || 0);
+        }else{
+            sheetData.rows[spreadSheetRowIndex].height = defaultRowHeight + (options.heightOffset || 0);
+        }
+        (row._cells || []).forEach((cell, spreadSheetColIndex) =>{
+            sheetData.rows[spreadSheetRowIndex].cells[spreadSheetColIndex] = {};
+            effectiveMaxColLen = Math.max(effectiveMaxColLen, spreadSheetColIndex);
+
+            let mergeAddress = find(mergeAddressData, function(o) { return o.startAddress == cell._address; });
+            if(mergeAddress && cell.master.address != mergeAddress.startAddress) {
+                return;
+            }
+            if(mergeAddress){
+                sheetData.rows[spreadSheetRowIndex].cells[spreadSheetColIndex].merge = [mergeAddress.YRange, mergeAddress.XRange];
+            }
+            sheetData.rows[spreadSheetRowIndex].cells[spreadSheetColIndex].text = getCellText(cell);
+            sheetData.styles.push(getStyle(cell));
+            sheetData.rows[spreadSheetRowIndex].cells[spreadSheetColIndex].style = sheetData.styles.length - 1;
+        });
+    }
+    return effectiveMaxColLen;
+}
+
+function finalizeSheetData(sheet, sheetData, options, effectiveMaxColLen, totalRowsLength, trimColumns = true){
+    if(sheetData._media){
+        sheetData.media = sheetData._media;
+    }
+    let tempRowsKeys = Object.keys(sheetData.rows).filter(key => key !== 'len');
+    let convertedRowsLength = tempRowsKeys.length ? +tempRowsKeys[tempRowsKeys.length-1] + 1 : 0;
+    let rowsLength = typeof totalRowsLength === 'number' ? Math.max(totalRowsLength, convertedRowsLength) : convertedRowsLength;
+    sheetData.rows.len = Math.max(rowsLength,
+        options.hasOwnProperty('minRowLength') ? options.minRowLength : 100);
+
+    if(trimColumns && sheet._columns && sheet._columns.length > effectiveMaxColLen + 1){
+        sheet._columns = sheet._columns.slice(0, effectiveMaxColLen + 1);
+    }
+    transferColumns(sheet,sheetData, options);
+}
+
+function createWorkbookResult(workbook, workbookData){
+    return {
+        workbookData,
+        workbookSource: workbook,
+        medias: workbook.media || [],
+        attachments: []
+    };
+}
+
+function getProgressiveOptions(options){
+    const progressive = options.progressive === true ? {} : options.progressive || {};
+    return {
+        initialRows: Math.max(0, Number(progressive.initialRows || options.initialRows || 50)),
+        batchRows: Math.max(1, Number(progressive.batchRows || options.batchRows || 100)),
+        onProgress: progressive.onProgress || options.onProgress,
+        onInitialDataReady: progressive.onInitialDataReady || options.onInitialDataReady
+    };
+}
+
+function callProgressiveHook(hook, payload){
+    if(typeof hook !== 'function'){
+        return;
+    }
+    try {
+        hook(payload);
+    } catch (e) {
+        console.warn(e);
+    }
+}
+
+function yieldMainThread(){
+    return new Promise(resolve => setTimeout(resolve, 0));
+}
+
 export async function transferExcelToSpreadSheet(workbook, options){
     let workbookData = [];
     let sheets = [];
@@ -381,11 +496,10 @@ export async function transferExcelToSpreadSheet(workbook, options){
     // 收集需要异步提取 docProps title 的附件任务
     const docPropsTasks = [];
     
-    let sheetIndex = 0;
     workbook.eachSheet((sheet) => {
         sheets.push(sheet);
         
-        let sheetData = { name: sheet.name,styles : [], rows: {},cols:{}, merges:[],media:[], attachments: [] };
+        let sheetData = createSheetData(sheet);
         
         // 从 sheet.oleObjects 提取附件信息
         const sheetAttachments = [];
@@ -520,72 +634,15 @@ export async function transferExcelToSpreadSheet(workbook, options){
             });
         }
         
-        // 收集合并单元格信息
-        let mergeAddressData = [];
-        for(let mergeRange in sheet._merges) {
-            sheetData.merges.push(sheet._merges[mergeRange].shortRange);
-            let mergeAddress = {};
-            mergeAddress.startAddress = sheet._merges[mergeRange].tl;
-            mergeAddress.endAddress = sheet._merges[mergeRange].br;
-            mergeAddress.YRange = sheet._merges[mergeRange].model.bottom - sheet._merges[mergeRange].model.top;
-            mergeAddress.XRange = sheet._merges[mergeRange].model.right - sheet._merges[mergeRange].model.left;
-            mergeAddressData.push(mergeAddress);
-        }
-
-        let effectiveMaxColLen = 0;
+        const mergeAddressData = collectMergeAddressData(sheet, sheetData);
+        const effectiveMaxColLen = transferRowsRange(sheet, sheetData, mergeAddressData, options, 0);
         
-        // 遍历行
-        (sheet._rows || []).forEach((row,spreadSheetRowIndex) =>{
-            sheetData.rows[spreadSheetRowIndex] = { cells: {} };
-            if(row._hidden){
-                sheetData.rows[spreadSheetRowIndex].height = 0.1;
-                sheetData.rows[spreadSheetRowIndex].hide = true;
-            }else if(row.height){
-                sheetData.rows[spreadSheetRowIndex].height = row.height + (options.heightOffset || 0);
-            }else{
-                sheetData.rows[spreadSheetRowIndex].height = defaultRowHeight + (options.heightOffset || 0);
-            }
-            
-            //includeEmpty = false 不包含空白单元格
-            (row._cells || []).forEach((cell, spreadSheetColIndex) =>{
-                sheetData.rows[spreadSheetRowIndex].cells[spreadSheetColIndex] = {};
-                effectiveMaxColLen = Math.max(effectiveMaxColLen, spreadSheetColIndex);
-
-                let mergeAddress = find(mergeAddressData, function(o) { return o.startAddress == cell._address; });
-                if(mergeAddress && cell.master.address != mergeAddress.startAddress) {
-                    return;
-                }
-                if(mergeAddress){
-                    sheetData.rows[spreadSheetRowIndex].cells[spreadSheetColIndex].merge = [mergeAddress.YRange, mergeAddress.XRange];
-                }
-                sheetData.rows[spreadSheetRowIndex].cells[spreadSheetColIndex].text = getCellText(cell);
-                sheetData.styles.push(getStyle(cell));
-                sheetData.rows[spreadSheetRowIndex].cells[spreadSheetColIndex].style = sheetData.styles.length - 1;
-            });
-        });
-        
-        if(sheetData._media){
-            sheetData.media = sheetData._media;
-        }
-        
-        // 设置附件数据
         console.log(`[附件] ${sheet.name} 最终附件数量:`, sheetAttachments.length);
         sheetAttachments.forEach((att, idx) => {
             console.log(`  ${idx+1}. ${att.name} (${att.type}) - range: ${att.range ? '有' : '无'}`);
         });
         sheetData.attachments = sheetAttachments;
-
-        sheetIndex++;
-
-        let tempRowsKeys = Object.keys(sheetData.rows);
-
-        sheetData.rows.len = Math.max(+tempRowsKeys[tempRowsKeys.length-1] + 1,
-            options.hasOwnProperty('minRowLength') ? options.minRowLength : 100);
-
-        if(sheet._columns && sheet._columns.length > effectiveMaxColLen + 1){
-            sheet._columns = sheet._columns.slice(0, effectiveMaxColLen + 1);
-        }
-        transferColumns(sheet,sheetData, options);
+        finalizeSheetData(sheet, sheetData, options, effectiveMaxColLen);
         workbookData.push(sheetData);
     });
     
@@ -598,12 +655,159 @@ export async function transferExcelToSpreadSheet(workbook, options){
         console.log('[附件] docProps 标题提取完成');
     }
     
-    return {
-        workbookData,
-        workbookSource: workbook,
-        medias: workbook.media || [],
-        attachments: []
-    };
+    return createWorkbookResult(workbook, workbookData);
+}
+
+export async function transferExcelToSpreadSheetProgressive(workbook, options = {}){
+    const progressiveOptions = getProgressiveOptions(options);
+    let workbookData = [];
+    let sheets = [];
+    const docPropsTasks = [];
+    const sheetStates = [];
+    workbook.eachSheet((sheet) => {
+        sheets.push(sheet);
+        let sheetData = createSheetData(sheet);
+        const sheetAttachments = [];
+        if (sheet.oleObjects && sheet.oleObjects.length > 0) {
+            sheet.oleObjects.forEach((oleObj, idx) => {
+                let attachmentType = 'unknown';
+                let iconType = 'unknown';
+                let displayName = `附件${idx + 1}`;
+                let fileBuffer = null;
+                if (oleObj.progId) {
+                    const progIdType = mapProgIdToType(oleObj.progId);
+                    if (progIdType) {
+                        attachmentType = progIdType;
+                        iconType = mapExtensionToIconType(progIdType) || 'unknown';
+                    }
+                }
+                let emfFilename = null;
+                if (oleObj.iconBuffer) {
+                    emfFilename = extractFilenameFromEMF(oleObj.iconBuffer);
+                    if (emfFilename) {
+                        displayName = emfFilename;
+                        const dotIdx = emfFilename.lastIndexOf('.');
+                        if (dotIdx !== -1) {
+                            const realExt = emfFilename.substring(dotIdx + 1).toLowerCase();
+                            if (realExt && realExt !== 'unknown') {
+                                attachmentType = realExt;
+                                iconType = mapExtensionToIconType(realExt) || iconType;
+                            }
+                        }
+                    }
+                }
+                let embOriginalFilename = null;
+                if (oleObj.embedding) {
+                    const emb = oleObj.embedding;
+                    embOriginalFilename = emb.originalFilename || null;
+                    if (emb.parsed) {
+                        const p = emb.parsed;
+                        if (p.fileType && p.fileType !== 'unknown') {
+                            attachmentType = p.fileType;
+                            iconType = mapExtensionToIconType(p.fileType) || iconType;
+                        }
+                        if (!emfFilename && p.shortFilename) {
+                            displayName = p.shortFilename;
+                        }
+                        if (p.fileData) {
+                            fileBuffer = p.fileData;
+                        }
+                    }
+                    if (!fileBuffer && emb.buffer) {
+                        fileBuffer = emb.buffer;
+                    }
+                }
+                let range = null;
+                if (oleObj.anchor) {
+                    const from = oleObj.anchor.from;
+                    const to = oleObj.anchor.to;
+                    if (from) {
+                        range = {
+                            type: 'range',
+                            startRow: from.row,
+                            startCol: from.col,
+                            endRow: to ? to.row : from.row,
+                            endCol: to ? to.col : from.col,
+                        };
+                    }
+                }
+                const attachment = {
+                    name: displayName,
+                    type: attachmentType,
+                    iconType: iconType,
+                    extension: attachmentType,
+                    buffer: fileBuffer,
+                    isOLE: true,
+                    progId: oleObj.progId,
+                    range: range,
+                };
+                sheetAttachments.push(attachment);
+                const isDefaultName = /^附件\d+$/.test(displayName);
+                if (isDefaultName && !emfFilename && fileBuffer) {
+                    const b0 = fileBuffer[0], b1 = fileBuffer[1], b2 = fileBuffer[2], b3 = fileBuffer[3];
+                    const head = fileBuffer.length >= 4 && b0 === 0x50 && b1 === 0x4B && b2 === 0x03 && b3 === 0x04;
+                    if (head) {
+                        docPropsTasks.push(
+                            extractDocPropsTitle(fileBuffer).then(title => {
+                                if (title && hasKnownExtension(title)) {
+                                    attachment.name = title;
+                                } else if (embOriginalFilename) {
+                                    attachment.name = embOriginalFilename;
+                                }
+                            }).catch(e => console.warn('docProps 任务失败:', e))
+                        );
+                    } else if (embOriginalFilename) {
+                        attachment.name = embOriginalFilename;
+                    }
+                }
+            });
+        }
+        const mergeAddressData = collectMergeAddressData(sheet, sheetData);
+        const totalRows = (sheet._rows || []).length;
+        const initialEndRow = Math.min(progressiveOptions.initialRows, totalRows);
+        const effectiveMaxColLen = transferRowsRange(sheet, sheetData, mergeAddressData, options, 0, initialEndRow);
+        sheetData.attachments = sheetAttachments;
+        finalizeSheetData(sheet, sheetData, options, effectiveMaxColLen, totalRows, false);
+        workbookData.push(sheetData);
+        sheetStates.push({
+            sheet,
+            sheetData,
+            mergeAddressData,
+            effectiveMaxColLen,
+            convertedRows: initialEndRow,
+            totalRows
+        });
+    });
+    workbook._worksheets = sheets;
+    const initialResult = createWorkbookResult(workbook, workbookData);
+    callProgressiveHook(progressiveOptions.onInitialDataReady, initialResult);
+    for(let sheetIndex = 0; sheetIndex < sheetStates.length; sheetIndex++){
+        const state = sheetStates[sheetIndex];
+        while(state.convertedRows < state.totalRows){
+            const startRow = state.convertedRows;
+            const endRow = Math.min(startRow + progressiveOptions.batchRows, state.totalRows);
+            state.effectiveMaxColLen = transferRowsRange(state.sheet, state.sheetData, state.mergeAddressData, options, startRow, endRow, state.effectiveMaxColLen);
+            state.convertedRows = endRow;
+            finalizeSheetData(state.sheet, state.sheetData, options, state.effectiveMaxColLen, state.totalRows, false);
+            callProgressiveHook(progressiveOptions.onProgress, {
+                sheetIndex,
+                sheetName: state.sheet.name,
+                startRow,
+                endRow,
+                convertedRows: state.convertedRows,
+                totalRows: state.totalRows,
+                done: state.convertedRows >= state.totalRows,
+                workbookData
+            });
+            await yieldMainThread();
+        }
+    }
+    if (docPropsTasks.length > 0) {
+        console.log(`[附件] 等待 ${docPropsTasks.length} 个 docProps 标题提取任务...`);
+        await Promise.all(docPropsTasks);
+        console.log('[附件] docProps 标题提取完成');
+    }
+    return createWorkbookResult(workbook, workbookData);
 }
 
 // 已知文件扩展名集合，按长度倒序排列以便优先匹配长扩展名

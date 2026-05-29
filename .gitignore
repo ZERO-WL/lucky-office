@@ -59,6 +59,10 @@ Desktop.ini
 *.bak
 *.tmp
 
+# 本地调试用的临时探针脚本（一次性诊断用，不进库）
+core/probe-*.js
+script/probe-*.js
+
 # 测试输出
 coverage/
 *.lcov

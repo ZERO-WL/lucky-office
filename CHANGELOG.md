@@ -14,13 +14,22 @@
 > 还未发布的改动放在这里，发布时挪到下方对应版本号下。
 
 ### Added
--
+- **Excel 渐进式转换可行性验证**（vue-excel / js-excel）
+  - 新增可选的 `options.progressive`，开启后先转换首屏前 N 行供 `x-spreadsheet` 即时加载，剩余行按批次继续转换并在批次之间让出主线程
+  - 提供 `initialRows / batchRows / onInitialDataReady / onProgress` 回调，便于观察首批 ready 与后续批次进度
+  - 默认关闭，未传 `options.progressive` 时行为完全不变
+- **解析阶段结构化错误日志**（vue-excel / js-excel）
+  - `readExcelData` 在 `wb.xlsx.load(buffer)` 失败时输出 `[excel parse]` 前缀的结构化日志（`phase / name / message / elapsedMs / bufferLength / stack`），便于把解析阶段错误与后续转换/渲染阶段错误区分开
 
 ### Changed
--
+- `core/package.json` 显式声明 workspace 依赖 `"@lucky-office/exceljs": "workspace:*"`，修复 Vite dev 因无法 resolve 而把 CJS 文件按原生 ESM 加载导致的
+  `SyntaxError: The requested module '/packages/exceljs/lib/exceljs.browser.js' does not provide an export named 'default'` 问题
 
 ### Fixed
--
+- **ExcelJS 解析阶段在"超多列 / 整列范围数据验证"输入下卡死或抛 `RangeError: Too many properties to enumerate`**
+  - `lib/xlsx/xform/sheet/data-validations-xform.js`：单条 `sqref` 展开 cell 数超过阈值时，改为按原 sqref 字符串整体保存，不再逐 cell 落入 `model`
+  - `lib/doc/worksheet.js`（`getColumn`）、`lib/doc/column.js`（`fromModel`）、`lib/doc/row.js`（`getCellEx` / `eachCell`）：跨极大列号时按 Excel 实际列上限 16384 防御，避免创建/枚举海量对象
+  - 全部为"超阈值才生效"的防御性上限，未改变 ExcelJS 公共 API，对常规文件零影响
 
 ### Removed
 -

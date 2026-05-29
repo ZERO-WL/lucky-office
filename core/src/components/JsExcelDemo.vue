@@ -17,10 +17,20 @@ onMounted(() => {
         },
         cellSelected(event){
             console.log(event);
+        },
+        progressive: {
+            initialRows: 30,
+            batchRows: 100,
+            onInitialDataReady(result){
+                console.log('[js-excel demo progressive initial]', result.workbookData);
+            },
+            onProgress(progress){
+                console.log('[js-excel demo progressive progress]', progress);
+            }
         }
 
     });
-    window.myExcelPreview.preview(`${import.meta.env.BASE_URL}static/test-files/test.xlsx`).then(_=>{
+    window.myExcelPreview.preview(`${import.meta.env.BASE_URL}static/test-files/超多列.xlsx`).then(_=>{
         // window.myExcelPreview.download();
         console.log('excel preview done', window.myExcelPreview);
     }).catch(err=>{

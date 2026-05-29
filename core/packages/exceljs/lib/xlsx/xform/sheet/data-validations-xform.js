@@ -215,9 +215,17 @@ class DataValidationsXform extends BaseXform {
         }
         // The four known cases: 1. E4:L9 N4:U9  2.E4 L9  3. N4:U9  4. E4
         const list = this._address.split(/\s+/g) || [];
+        // 防御性上限：一些文件在 sqref 中使用整列/整行范围（如 A2:A1048576），
+        // 直接展开到每个 cell 会创建上百万条 model 条目，导致卡死/RangeError。
+        // 当 range 单元格数超过阈值时，跳过逐 cell 展开，改为以原始 sqref 作为 key 整体存储。
+        const MAX_DV_CELLS = 10000;
         list.forEach(addr => {
           if (addr.includes(':')) {
             const range = new Range(addr);
+            if (range.count > MAX_DV_CELLS) {
+              this.model[addr] = this._dataValidation;
+              return;
+            }
             range.forEachAddress(address => {
               this.model[address] = this._dataValidation;
             });

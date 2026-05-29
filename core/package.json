@@ -24,6 +24,7 @@
     "@babel/plugin-transform-template-literals": "^7.23.3",
     "@babel/preset-env": "^7.22.5",
     "@babel/runtime": "^7.23.6",
+    "@lucky-office/exceljs": "workspace:*",
     "@rollup/plugin-babel": "^6.0.3",
     "@vue/compiler-sfc": "3.2.45",
     "ant-design-vue": "^3.2.17",

@@ -1,7 +1,7 @@
 <script>
 import {defineComponent, ref, onMounted, onBeforeUnmount, watch, nextTick} from 'vue';
 import Spreadsheet from './x-spreadsheet/index';
-import {getData, readExcelData, transferExcelToSpreadSheet} from './excel';
+import {getData, readExcelData, transferExcelToSpreadSheet, transferExcelToSpreadSheetProgressive} from './excel';
 import {renderImage, renderAttachments, clearCache} from './media';
 import {readOnlyInput} from './hack';
 import {debounce} from 'lodash';
@@ -56,7 +56,43 @@ export default defineComponent({
                 if(props.options.beforeTransformData && typeof props.options.beforeTransformData === 'function' ){
                     workbook = props.options.beforeTransformData(workbook);
                 }
-                const result = await transferExcelToSpreadSheet(workbook, {...defaultOptions, ...props.options});
+                const mergedOptions = {...defaultOptions, ...props.options};
+                const progressiveEnabled = !!mergedOptions.progressive;
+                const result = await (progressiveEnabled ? transferExcelToSpreadSheetProgressive(workbook, {
+                    ...mergedOptions,
+                    onInitialDataReady(result){
+                        workbookData = result.workbookData;
+                        mediasSource = result.medias;
+                        workbookDataSource = result.workbookSource;
+                        offset = null;
+                        sheetIndex = 0;
+                        clearCache();
+                        xs.loadData(workbookData);
+                        renderImage(ctx, mediasSource, workbookDataSource._worksheets[sheetIndex], offset, props.options);
+                        const currentSheet = workbookData[sheetIndex];
+                        if (currentSheet && currentSheet.attachments) {
+                            renderAttachments(ctx, currentSheet, offset, props.options);
+                        }
+                        if (mergedOptions.progressive && typeof mergedOptions.progressive.onInitialDataReady === 'function') {
+                            mergedOptions.progressive.onInitialDataReady(result);
+                        }
+                    },
+                    onProgress(progress){
+                        console.log('[excel progressive]', progress);
+                        xs.loadData(workbookData);
+                        xs.reRender();
+                        const currentSheet = workbookData[sheetIndex];
+                        if (currentSheet) {
+                            renderImage(ctx, mediasSource, currentSheet, offset, props.options);
+                            if (currentSheet.attachments) {
+                                renderAttachments(ctx, currentSheet, offset, props.options);
+                            }
+                        }
+                        if (mergedOptions.progressive && typeof mergedOptions.progressive.onProgress === 'function') {
+                            mergedOptions.progressive.onProgress(progress);
+                        }
+                    }
+                }) : transferExcelToSpreadSheet(workbook, mergedOptions));
                 workbookData = result.workbookData;
                 console.log('=== workbookData ===');
                 console.log('workbookData.length:', workbookData.length);
