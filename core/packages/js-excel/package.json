@@ -1,7 +1,7 @@
 {
   "name": "@lucky-office/js-excel",
   "type": "module",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "基于 vue-office 二次开发的框架无关 Excel 预览库（vanilla JS / UMD）。",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

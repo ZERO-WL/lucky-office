@@ -1,6 +1,6 @@
 {
   "name": "@lucky-office/pdf",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "基于 vue-office 二次开发的 Vue PDF 预览组件，底层基于 pdf.js，支持自定义 worker 路径与缩放控制。",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

@@ -1,7 +1,7 @@
 {
   "name": "@lucky-office/js-pdf",
   "type": "module",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "基于 vue-office 二次开发的框架无关 PDF 预览库（vanilla JS / UMD），底层基于 pdf.js。",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
