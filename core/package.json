@@ -1,6 +1,6 @@
 {
   "name": "lucky-office",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "基于 vue-office 二次开发的办公文档预览组件，支持 docx、pdf、ppt、excel 的预览",
   "scripts": {
     "dev": "vite",

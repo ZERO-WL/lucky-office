@@ -1,6 +1,6 @@
 {
   "name": "@lucky-office/exceljs",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "ExcelJS 的 fork 版本，作为 lucky-office（基于 vue-office 二次开发）的本地化 Excel 解析依赖。",
   "private": false,
   "license": "MIT",
