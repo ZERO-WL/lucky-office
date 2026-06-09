@@ -15,6 +15,7 @@ class JsExcelPreview {
     options = {};
     requestOptions = {};
     mediasSource = [];
+    workbookData = [];
     workbookDataSource = {
         _worksheets:[]
     };
@@ -92,7 +93,7 @@ class JsExcelPreview {
             that.sheetIndex = index;
             setTimeout(()=>{
                 that.xs.reRender();
-                renderImage(that.ctx, that.mediasSource,that.workbookDataSource._worksheets[that.sheetIndex], that.offset);
+                renderImage(that.ctx, that.mediasSource, that.workbookData[that.sheetIndex], that.offset, that.options);
             });
 
         };
@@ -100,14 +101,14 @@ class JsExcelPreview {
         this.xs.sheet.editor.clear = function (...args){
             clear.apply(that.xs.sheet.editor, args);
             setTimeout(()=>{
-                renderImage(that.ctx, that.mediasSource,that.workbookDataSource._worksheets[that.sheetIndex], that.offset);
+                renderImage(that.ctx, that.mediasSource, that.workbookData[that.sheetIndex], that.offset, that.options);
             });
         };
         let setOffset = this.xs.sheet.editor.setOffset;
         this.xs.sheet.editor.setOffset = function (...args){
             setOffset.apply(that.xs.sheet.editor, args);
             that.offset = args[0];
-            renderImage(that.ctx, that.mediasSource,that.workbookDataSource._worksheets[that.sheetIndex], that.offset);
+            renderImage(that.ctx, that.mediasSource, that.workbookData[that.sheetIndex], that.offset, that.options);
         };
         const canvas = this.wrapperMain.querySelector('canvas');
         this.ctx = canvas.getContext('2d');
@@ -130,21 +131,23 @@ class JsExcelPreview {
                 ...this.options,
                 onInitialDataReady: (result) => {
                     this.mediasSource = result.medias;
+                    this.workbookData = result.workbookData;
                     this.workbookDataSource = result.workbookSource;
                     this.offset = null;
                     this.sheetIndex = 0;
                     clearCache();
                     this.xs.loadData(result.workbookData);
-                    renderImage(this.ctx, this.mediasSource,this.workbookDataSource._worksheets[this.sheetIndex], this.offset);
+                    renderImage(this.ctx, this.mediasSource, this.workbookData[this.sheetIndex], this.offset, this.options);
                     if (this.options.progressive && typeof this.options.progressive.onInitialDataReady === 'function') {
                         this.options.progressive.onInitialDataReady(result);
                     }
                 },
                 onProgress: (progress) => {
                     console.log('[js-excel progressive]', progress);
+                    this.workbookData = progress.workbookData;
                     this.xs.loadData(progress.workbookData);
                     this.xs.reRender();
-                    renderImage(this.ctx, this.mediasSource,this.workbookDataSource._worksheets[this.sheetIndex], this.offset);
+                    renderImage(this.ctx, this.mediasSource, this.workbookData[this.sheetIndex], this.offset, this.options);
                     if (this.options.progressive && typeof this.options.progressive.onProgress === 'function') {
                         this.options.progressive.onProgress(progress);
                     }
@@ -154,14 +157,16 @@ class JsExcelPreview {
                 workbookData = this.options.transformData(workbookData);
             }
             this.mediasSource = medias;
+            this.workbookData = workbookData;
             this.workbookDataSource = workbookSource;
             this.offset = null;
             this.sheetIndex = 0;
             clearCache();
             this.xs.loadData(workbookData);
-            renderImage(this.ctx, this.mediasSource,this.workbookDataSource._worksheets[this.sheetIndex], this.offset);
+            renderImage(this.ctx, this.mediasSource, this.workbookData[this.sheetIndex], this.offset, this.options);
         } catch (e) {
             this.mediasSource = [];
+            this.workbookData = [];
             this.workbookDataSource = {
                 _worksheets:[]
             };
@@ -189,6 +194,7 @@ class JsExcelPreview {
             getData(src, this.requestOptions).then((res)=>{
                 this.renderExcel(res).then(resolve).catch(e =>{
                     this.mediasSource = [];
+                    this.workbookData = [];
                     this.workbookDataSource = {
                         _worksheets:[]
                     };
@@ -197,6 +203,7 @@ class JsExcelPreview {
                 });
             }).catch(e => {
                 this.mediasSource = [];
+                this.workbookData = [];
                 this.workbookDataSource = {
                     _worksheets:[]
                 };
@@ -220,6 +227,7 @@ class JsExcelPreview {
         this.options = null;
         this.requestOptions = null;
         this.mediasSource = null;
+        this.workbookData = null;
         this.workbookDataSource = null;
     }
 }

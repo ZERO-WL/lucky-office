@@ -172,93 +172,109 @@ function transferColumns(excelSheet, spreadSheet, options){
     spreadSheet.cols.len = Math.max(Object.keys(spreadSheet.cols).length, options.minColLength || 0);
 }
 
+function formatNumberByNumFmt(value, numFmt){
+    try {
+        if(numFmt){
+            if(numFmt.endsWith('%')){
+                let precision = numFmt.match(/\.(\d+)%/);
+                if(precision){
+                    return (value * 100).toFixed(precision[1].length) + '%';
+                }else {
+                    return value * 100 + '%';
+                }
+            }else if(/0(\.0+)?/.test(numFmt)){
+                let prefix = '';
+                if(numFmt.startsWith('$')){
+                    prefix = '$';
+                }else if(numFmt.startsWith('"¥')){
+                    prefix = '¥';
+                }
+
+                if(value === 0 && numFmt.startsWith('_')){
+                    return '-';
+                }
+                let precision = numFmt.match(/0\.(0+)(_|;|$)/);
+                if(precision){
+                    precision = precision[1].length;
+                }else{
+                    precision = 0;
+                }
+
+                let result = value.toFixed(precision) + '';
+                if(numFmt.includes('#,##')){
+                    result = result.split('.');
+                    let number = result[0].split('').reverse();
+                    let newNumber = [];
+                    for(let i = 0; i< number.length; i++){
+                        newNumber.push(number[i]);
+                        if((i+1) % 3 === 0 && i < number.length - 1 && number[i+1] !== '-'){
+                            newNumber.push(',');
+                        }
+
+                    }
+                    result[0] = newNumber.reverse().join('');
+                    result = result.join('.');
+                }
+                return prefix + result;
+            }
+
+        }
+        return value + '';
+    }catch (e){
+        return value;
+    }
+}
+
+function formatDateByNumFmt(value, numFmt){
+    switch (numFmt){
+        case 'yyyy-mm-dd;@':
+            return dayjs(value).format('YYYY-MM-DD');
+        case 'mm-dd-yy':
+            return dayjs(value).format('YYYY/MM/DD');
+        case '[$-F800]dddd, mmmm dd, yyyy':
+            return dayjs(value).format('YYYY年M月D日 ddd');
+        case 'm"月"d"日";@':
+            return dayjs(value).format('M月D日');
+        case 'yyyy/m/d h:mm;@':
+        case 'm/d/yy "h":mm':
+            return dayjs(value).subtract(8, 'hour').format('YYYY/M/DD HH:mm');
+        case 'h:mm;@':
+            return dayjs(value).format('HH:mm');
+        default:
+            return dayjs(value).format('YYYY-MM-DD');
+    }
+}
+
+function formatCellValueByNumFmt(cell, value){
+    const numFmt = cell.numFmt || (cell.style && cell.style.numFmt);
+    if(value instanceof Date){
+        return formatDateByNumFmt(value, numFmt);
+    }
+    if(typeof value === 'number'){
+        return formatNumberByNumFmt(value, numFmt);
+    }
+    return value;
+}
+
 function getCellText(cell){
     //console.log(cell);
-    let {numFmt, value, type} = cell;
+    let {value, type} = cell;
     switch (type){
         case 2: //数字
-            try {
-                //numFmt:
-                // "0.00%"
-                // "0.00_);(0.00)"
-                // "#,##0.000_);(#,##0.000)"   千分位
-                // "#,##0.000;[Red]#,##0.000"
-                if(cell.style.numFmt){
-                    if(cell.style.numFmt.endsWith('%')){
-                        let precision = cell.style.numFmt.match(/\.(\d+)%/);
-                        if(precision){
-                            return (value * 100).toFixed(precision[1].length) + '%';
-                        }else {
-                            return value * 100 + '%';
-                        }
-                    }else if(/0(\.0+)?/.test(cell.style.numFmt)){
-                        let prefix = '';
-                        if(cell.style.numFmt.startsWith('$')){
-                            prefix = '$';
-                        }else if(cell.style.numFmt.startsWith('"¥')){
-                            prefix = '¥';
-                        }
-
-                        if(value === 0 && cell.style.numFmt.startsWith('_')){
-                            return '-';
-                        }
-                        let precision = cell.style.numFmt.match(/0\.(0+)(_|;|$)/);
-                        if(precision){
-                            precision = precision[1].length;
-                        }else{
-                            precision = 0;
-                        }
-
-                        let result = value.toFixed(precision) + '';
-                        if(cell.style.numFmt.includes('#,##')){
-                            //千分位
-                            result = result.split('.');
-                            let number = result[0].split('').reverse();
-                            let newNumber = [];
-                            for(let i = 0; i< number.length; i++){
-                                newNumber.push(number[i]);
-                                if((i+1) % 3 === 0 && i < number.length - 1 && number[i+1] !== '-'){
-                                    newNumber.push(',');
-                                }
-
-                            }
-                            result[0] = newNumber.reverse().join('');
-                            result = result.join('.');
-                        }
-                        return prefix + result;
-                    }
-
-                }
-                return value + '';
-            }catch (e){
-                return value;
-            }
-            
+            return formatCellValueByNumFmt(cell, value);
         case 3: //字符串
             return value;
         case 4: //日期
-            switch (numFmt){
-                case 'yyyy-mm-dd;@':
-                    return dayjs(value).format('YYYY-MM-DD');
-                case 'mm-dd-yy':
-                    return dayjs(value).format('YYYY/MM/DD');
-                case '[$-F800]dddd, mmmm dd, yyyy':
-                    return dayjs(value).format('YYYY年M月D日 ddd');
-                case 'm"月"d"日";@':
-                    return dayjs(value).format('M月D日');
-                case 'yyyy/m/d h:mm;@':
-                case 'm/d/yy "h":mm':
-                    return dayjs(value).subtract(8, 'hour').format('YYYY/M/DD HH:mm');
-                case 'h:mm;@':
-                    return dayjs(value).format('HH:mm');
-                default:
-                    return dayjs(value).format('YYYY-MM-DD');
-            }
-
+            return formatCellValueByNumFmt(cell, value);
         case 5: //超链接
             return value.text;
-        case 6: //公式
-            return get(value, 'result.error') || value.result;
+        case 6: { //公式
+            const error = get(value, 'result.error');
+            if(error){
+                return error;
+            }
+            return formatCellValueByNumFmt(cell, value.result);
+        }
         case 8: //富文本
             return cell.text;
         case 9: //Boolean
@@ -384,7 +400,7 @@ function getStyle(cell){
 }
 
 function createSheetData(sheet){
-    return { name: sheet.name,styles : [], rows: {},cols:{}, merges:[],media:[], attachments: [] };
+    return { name: sheet.name,styles : [], rows: {},cols:{}, merges:[],media: sheet._media || [], attachments: [] };
 }
 
 function collectMergeAddressData(sheet, sheetData){
@@ -442,6 +458,11 @@ function transferRowsRange(sheet, sheetData, mergeAddressData, options, startRow
 function finalizeSheetData(sheet, sheetData, options, effectiveMaxColLen, totalRowsLength, trimColumns = true){
     if(sheetData._media){
         sheetData.media = sheetData._media;
+    }
+    if(!sheetData.media || sheetData.media.length === 0){
+        if(sheet && sheet._media){
+            sheetData.media = sheet._media;
+        }
     }
     let tempRowsKeys = Object.keys(sheetData.rows).filter(key => key !== 'len');
     let convertedRowsLength = tempRowsKeys.length ? +tempRowsKeys[tempRowsKeys.length-1] + 1 : 0;

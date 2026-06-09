@@ -19,9 +19,7 @@ function transformData(data){
     return data;
 }
 
-const defaultSrc = location.origin +
-    (location.pathname + '/').replace('//', '/')
-    + 'static/test-files/超多列.xlsx';
+const defaultSrc = `${location.origin}${import.meta.env.BASE_URL}static/test-files/test.xlsx`;
 const docxRef = ref();
 
 function beforeTransformData(data){

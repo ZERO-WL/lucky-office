@@ -68,7 +68,7 @@ export default defineComponent({
                         sheetIndex = 0;
                         clearCache();
                         xs.loadData(workbookData);
-                        renderImage(ctx, mediasSource, workbookDataSource._worksheets[sheetIndex], offset, props.options);
+                        renderImage(ctx, mediasSource, workbookData[sheetIndex], offset, props.options);
                         const currentSheet = workbookData[sheetIndex];
                         if (currentSheet && currentSheet.attachments) {
                             renderAttachments(ctx, currentSheet, offset, props.options);
@@ -123,7 +123,7 @@ export default defineComponent({
                 sheetIndex = 0;
                 clearCache();
                 xs.loadData(workbookData);
-                renderImage(ctx, mediasSource, workbookDataSource._worksheets[sheetIndex], offset, props.options);
+                renderImage(ctx, mediasSource, workbookData[sheetIndex], offset, props.options);
                 console.log('=== 准备渲染附件 ===');
                 console.log('ctx:', ctx);
                 console.log('workbookData[0]:', workbookData[0]);

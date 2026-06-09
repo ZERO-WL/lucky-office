@@ -69,19 +69,22 @@ function loadAttachmentIcon(type) {
 }
 
 export function renderImage(ctx, medias, sheet, offset, options={}){
-    // console.log('medias', medias);
-    // console.log('sheet', sheet);
-    // console.log('offset',  offset)
-    if(sheet && sheet._media && sheet._media.length){
-        sheet._media.forEach(media => {
-            let {imageId, range, type} = media;
-            if(type === 'image'){
-                let position = calcPosition(sheet,range,offset, options);
-                drawImage(ctx,imageId, medias[imageId], position);
-            }
-        });
+    if(!ctx || !sheet){
+        return;
     }
-
+    const sheetMedias = sheet._media || sheet.media || [];
+    sheetMedias.forEach(media => {
+        const {imageId, range, type} = media;
+        if(type !== 'image'){
+            return;
+        }
+        const imageData = medias && medias[imageId];
+        if(!imageData){
+            return;
+        }
+        const position = calcPosition(sheet, range, offset, options);
+        drawImage(ctx, imageId, imageData, position);
+    });
 }
 
 // 附件图标路径映射（已废弃，所有图标解析走 buildIconMap() / getIconBaseUrl()）
@@ -393,6 +396,26 @@ function drawRoundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
+function getColumnWidth(sheet, index){
+    if(sheet && sheet._columns && sheet._columns[index] && sheet._columns[index].width){
+        return sheet._columns[index].width * 6;
+    }
+    if(sheet && sheet.cols && sheet.cols[index] && sheet.cols[index].width){
+        return sheet.cols[index].width;
+    }
+    return defaultColWidth;
+}
+
+function getRowHeight(sheet, index){
+    if(sheet && sheet._rows && sheet._rows[index] && sheet._rows[index].height){
+        return sheet._rows[index].height;
+    }
+    if(sheet && sheet.rows && sheet.rows[index] && sheet.rows[index].height){
+        return sheet.rows[index].height;
+    }
+    return defaultRowHeight;
+}
+
 function calcPosition(sheet, range, offset, options){
     let {widthOffset, heightOffset} = options;
     
@@ -417,11 +440,11 @@ function calcPosition(sheet, range, offset, options){
     let basicX = clipWidth;
     let basicY = clipHeight;
     for(let i=0; i < nativeCol; i++){
-        basicX += sheet?._columns?.[i]?.width*6 || defaultColWidth;
+        basicX += getColumnWidth(sheet, i);
         basicX += widthOffset || 0;
     }
     for(let i=0; i < nativeRow; i++){
-        basicY += sheet?._rows?.[i]?.height || defaultRowHeight;
+        basicY += getRowHeight(sheet, i);
         basicY += heightOffset || 0;
     }
     let x = basicX + nativeColOff/12700;
@@ -432,10 +455,10 @@ function calcPosition(sheet, range, offset, options){
     if(nativeCol === nativeColEnd && range.br){
         width = (nativeColOffEnd - nativeColOff) / 12700;
     }else if(range.br) {
-        width = (sheet?._columns?.[nativeCol]?.width*6 || defaultColWidth) - nativeColOff/12700;
+        width = getColumnWidth(sheet, nativeCol) - nativeColOff/12700;
 
         for(let i = nativeCol+1; i < nativeColEnd; i++){
-            width += sheet?._columns?.[i]?.width*6 || defaultColWidth;
+            width += getColumnWidth(sheet, i);
         }
         width += nativeColOffEnd / 12700;
     }else if(range.ext?.width){
@@ -443,7 +466,7 @@ function calcPosition(sheet, range, offset, options){
     }else if(isSimpleRange){
         // simple range 格式：累加 nativeCol 到 nativeColEnd 的列宽
         for(let i = nativeCol; i <= nativeColEnd; i++){
-            width += sheet?._columns?.[i]?.width*6 || defaultColWidth;
+            width += getColumnWidth(sheet, i);
         }
         if(width === 0){
             width = defaultColWidth;
@@ -452,9 +475,9 @@ function calcPosition(sheet, range, offset, options){
     if(nativeRow === nativeRowEnd && range.br){
         height = (nativeRowOffEnd - nativeRowOff) / 12700;
     }else if(range.br) {
-        height = (sheet?._rows?.[nativeRow]?.height || defaultRowHeight) - nativeRowOff/12700;
+        height = getRowHeight(sheet, nativeRow) - nativeRowOff/12700;
         for(let i = nativeRow+1; i < nativeRowEnd; i++){
-            height += sheet?._rows?.[i]?.height || defaultRowHeight;
+            height += getRowHeight(sheet, i);
         }
         height += nativeRowOffEnd / 12700;
     }else if(range.ext?.height){
@@ -462,7 +485,7 @@ function calcPosition(sheet, range, offset, options){
     }else if(isSimpleRange){
         // simple range 格式：累加 nativeRow 到 nativeRowEnd 的行高
         for(let i = nativeRow; i <= nativeRowEnd; i++){
-            height += sheet?._rows?.[i]?.height || defaultRowHeight;
+            height += getRowHeight(sheet, i);
         }
         if(height === 0){
             height = defaultRowHeight;
@@ -481,6 +504,9 @@ export function clearCache(){
 }
 
 function drawImage(ctx,index, data, position){
+    if(!ctx || !data || !position || position.width <= 0 || position.height <= 0){
+        return;
+    }
     getImage(index, data).then(image=>{
         let sx = 0;
         let sy = 0;
@@ -507,6 +533,9 @@ function drawImage(ctx,index, data, position){
             sHeight -= diff/scaleY;
             sy += diff/scaleY;
         }
+        if(sWidth <= 0 || sHeight <= 0 || dWidth <= 0 || dHeight <= 0){
+            return;
+        }
         // console.log('=>', sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight)
         let scale =  window.outerWidth / window.innerWidth;
         ctx.drawImage(image, sx, sy, sWidth, sHeight, dx*scale, dy*scale, dWidth*scale, dHeight*scale);
@@ -514,12 +543,29 @@ function drawImage(ctx,index, data, position){
         console.error(e);
     });
 }
+function normalizeImageBuffer(buffer){
+    if(buffer instanceof ArrayBuffer){
+        return buffer;
+    }
+    if(buffer instanceof Uint8Array){
+        return buffer;
+    }
+    if(buffer && buffer.buffer instanceof ArrayBuffer){
+        return buffer.buffer.slice(buffer.byteOffset || 0, (buffer.byteOffset || 0) + buffer.byteLength);
+    }
+    return buffer;
+}
+
 function getImage(index, data){
     return new Promise(((resolve, reject) => {
         if(cache[index]){
             return resolve(cache[index]);
         }
-        const {buffer} = data.buffer;
+        const buffer = normalizeImageBuffer(data.buffer);
+        if(!buffer){
+            reject(new Error('image buffer is empty'));
+            return;
+        }
         let blob = new Blob([buffer], { type: 'image/' + data.extension});
         let url = URL.createObjectURL(blob);
         let image = new Image();
