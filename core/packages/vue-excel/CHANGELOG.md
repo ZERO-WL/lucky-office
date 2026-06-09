@@ -1,5 +1,14 @@
 # @lucky-office/excel
 
+## 0.3.1
+
+### Patch Changes
+
+- [`0e5a570`](https://github.com/ZERO-WL/lucky-office/commit/0e5a570764c9f0c5a47c86870ad9ea59bb6209e8) Thanks [@ZERO-WL](https://github.com/ZERO-WL)! - 修复 Excel 图片预览渲染异常，并修复公式单元格结果未按数字格式显示的问题。
+
+- Updated dependencies []:
+  - @lucky-office/exceljs@0.3.1
+
 ## 0.3.0
 
 ### Minor Changes
