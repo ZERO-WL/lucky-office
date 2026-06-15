@@ -1,5 +1,14 @@
 # @lucky-office/excel
 
+## 0.3.2
+
+### Patch Changes
+
+- [`ff135e0`](https://github.com/ZERO-WL/lucky-office/commit/ff135e060e5c596df6c5bb04658031f74d18bf19) Thanks [@ZERO-WL](https://github.com/ZERO-WL)! - 修复 Excel 附件操作配置、附件下载、附件首次渲染和公式无缓存结果显示问题。
+
+- Updated dependencies []:
+  - @lucky-office/exceljs@0.3.2
+
 ## 0.3.1
 
 ### Patch Changes
