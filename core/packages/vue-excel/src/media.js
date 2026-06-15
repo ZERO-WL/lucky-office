@@ -224,30 +224,49 @@ function renderAttachmentIcon(ctx, attachment, index, sheet, options) {
     // 是否选中
     const isSelected = !!attachment._selected;
     
-    // 计算下载按钮位置（在卡片底部右侧）
-    const downloadBtnW = 44 * devicePixelRatio;
-    const downloadBtnH = 18 * devicePixelRatio;
-    const downloadBtnX = cardX + cardWidth - downloadBtnW - 6 * devicePixelRatio;
-    const downloadBtnY = cardY + cardHeight - downloadBtnH - 4 * devicePixelRatio;
-    attachment._downloadBtnInfo = {
-      x: downloadBtnX / devicePixelRatio,
-      y: downloadBtnY / devicePixelRatio,
-      width: downloadBtnW / devicePixelRatio,
-      height: downloadBtnH / devicePixelRatio,
-    };
+    const showPreviewButton = options.showAttachmentPreviewButton !== false;
+    const showDownloadButton = options.showAttachmentDownloadButton !== false;
+    const actionBtnW = 44 * devicePixelRatio;
+    const actionBtnH = 18 * devicePixelRatio;
+    const actionBtnGap = 4 * devicePixelRatio;
+    const actionBtnY = cardY + cardHeight - actionBtnH - 4 * devicePixelRatio;
+    const actionBtnRightX = cardX + cardWidth - actionBtnW - 6 * devicePixelRatio;
+    let previewBtnX;
+    let previewBtnY;
+    let previewBtnW;
+    let previewBtnH;
+    let downloadBtnX;
+    let downloadBtnY;
+    let downloadBtnW;
+    let downloadBtnH;
+    delete attachment._previewBtnInfo;
+    delete attachment._downloadBtnInfo;
 
-    // 计算预览按钮位置（在下载按钮左侧并排）
-    const previewBtnW = 44 * devicePixelRatio;
-    const previewBtnH = 18 * devicePixelRatio;
-    const previewBtnGap = 4 * devicePixelRatio;
-    const previewBtnX = downloadBtnX - previewBtnW - previewBtnGap;
-    const previewBtnY = downloadBtnY;
-    attachment._previewBtnInfo = {
-      x: previewBtnX / devicePixelRatio,
-      y: previewBtnY / devicePixelRatio,
-      width: previewBtnW / devicePixelRatio,
-      height: previewBtnH / devicePixelRatio,
-    };
+    if (showDownloadButton) {
+      downloadBtnX = actionBtnRightX;
+      downloadBtnY = actionBtnY;
+      downloadBtnW = actionBtnW;
+      downloadBtnH = actionBtnH;
+      attachment._downloadBtnInfo = {
+        x: downloadBtnX / devicePixelRatio,
+        y: downloadBtnY / devicePixelRatio,
+        width: downloadBtnW / devicePixelRatio,
+        height: downloadBtnH / devicePixelRatio,
+      };
+    }
+
+    if (showPreviewButton) {
+      previewBtnX = showDownloadButton ? actionBtnRightX - actionBtnW - actionBtnGap : actionBtnRightX;
+      previewBtnY = actionBtnY;
+      previewBtnW = actionBtnW;
+      previewBtnH = actionBtnH;
+      attachment._previewBtnInfo = {
+        x: previewBtnX / devicePixelRatio,
+        y: previewBtnY / devicePixelRatio,
+        width: previewBtnW / devicePixelRatio,
+        height: previewBtnH / devicePixelRatio,
+      };
+    }
     
     // 存储附件位置信息，用于点击交互（以 CSS 像素为单位）
     if (!attachment._renderInfo) {
@@ -259,27 +278,23 @@ function renderAttachmentIcon(ctx, attachment, index, sheet, options) {
     attachment._renderInfo.height = cardHeight / devicePixelRatio;
     
     const iconType = attachment.iconType || attachment.type || 'unknown';
-    // 用 hasOwnProperty 判断"是否已经尝试过加载"，避免对加载失败的 null 反复重试导致死循环
     const triedLoad = Object.prototype.hasOwnProperty.call(attachmentIcons, iconType);
     const cachedImg = attachmentIcons[iconType];
-    
-    // 如果图标从未尝试加载过，先异步加载并触发重绘；加载失败也会缓存 null，下次进入这里 triedLoad=true 直接走降级
+
     if (!triedLoad) {
       loadAttachmentIcon(iconType).then(() => {
-        // 触发外部重绘（通过 options 传入的 onIconLoaded 回调）
         if (typeof options.onIconLoaded === 'function') {
           options.onIconLoaded();
         }
       });
-      return;
     }
-    
-    // 同步绘制：背景 → 图标 → 名称 → (选中态下)下载按钮
+
     drawAttachmentCard(ctx, attachment, {
       cardX, cardY, cardWidth, cardHeight,
       iconX, iconY, iconSize,
       downloadBtnX, downloadBtnY, downloadBtnW, downloadBtnH,
       previewBtnX, previewBtnY, previewBtnW, previewBtnH,
+      showPreviewButton, showDownloadButton,
       isSelected, cachedImg, iconType, index,
       isDragging: !!attachment._dragging,
     });
@@ -293,6 +308,7 @@ function drawAttachmentCard(ctx, attachment, p) {
   const {cardX, cardY, cardWidth, cardHeight, iconX, iconY, iconSize,
     downloadBtnX, downloadBtnY, downloadBtnW, downloadBtnH,
     previewBtnX, previewBtnY, previewBtnW, previewBtnH,
+    showPreviewButton, showDownloadButton,
     isSelected, cachedImg, iconType, index, isDragging} = p;
   
   // 1. 卡片背景与边框
@@ -349,34 +365,36 @@ function drawAttachmentCard(ctx, attachment, p) {
   
   // 4. 选中态：绘制预览按钮 + 下载按钮
   if (isSelected) {
-    // 预览按钮：白底 + 蓝边 + 蓝字（次要操作）
-    ctx.save();
-    ctx.fillStyle = '#FFFFFF';
-    ctx.strokeStyle = '#1890FF';
-    ctx.lineWidth = 1 * devicePixelRatio;
-    drawRoundRect(ctx, previewBtnX, previewBtnY, previewBtnW, previewBtnH, 3 * devicePixelRatio);
-    ctx.fill();
-    ctx.stroke();
+    if (showPreviewButton) {
+      ctx.save();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.strokeStyle = '#1890FF';
+      ctx.lineWidth = 1 * devicePixelRatio;
+      drawRoundRect(ctx, previewBtnX, previewBtnY, previewBtnW, previewBtnH, 3 * devicePixelRatio);
+      ctx.fill();
+      ctx.stroke();
 
-    ctx.fillStyle = '#1890FF';
-    ctx.font = `${10 * devicePixelRatio}px Arial`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('预览', previewBtnX + previewBtnW / 2, previewBtnY + previewBtnH / 2);
-    ctx.restore();
+      ctx.fillStyle = '#1890FF';
+      ctx.font = `${10 * devicePixelRatio}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('预览', previewBtnX + previewBtnW / 2, previewBtnY + previewBtnH / 2);
+      ctx.restore();
+    }
 
-    // 下载按钮：蓝底白字（主操作）
-    ctx.save();
-    ctx.fillStyle = '#1890FF';
-    drawRoundRect(ctx, downloadBtnX, downloadBtnY, downloadBtnW, downloadBtnH, 3 * devicePixelRatio);
-    ctx.fill();
-    
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = `${10 * devicePixelRatio}px Arial`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('下载', downloadBtnX + downloadBtnW / 2, downloadBtnY + downloadBtnH / 2);
-    ctx.restore();
+    if (showDownloadButton) {
+      ctx.save();
+      ctx.fillStyle = '#1890FF';
+      drawRoundRect(ctx, downloadBtnX, downloadBtnY, downloadBtnW, downloadBtnH, 3 * devicePixelRatio);
+      ctx.fill();
+      
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = `${10 * devicePixelRatio}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('下载', downloadBtnX + downloadBtnW / 2, downloadBtnY + downloadBtnH / 2);
+      ctx.restore();
+    }
   }
 }
 

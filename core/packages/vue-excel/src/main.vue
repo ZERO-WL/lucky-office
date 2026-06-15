@@ -11,7 +11,9 @@ import {downloadOLEObject, formatFileSize, getMimeType} from './ole-downloader';
 
 const defaultOptions = {
     xls: false,
-    minColLength: 20
+    minColLength: 20,
+    showAttachmentPreviewButton: true,
+    showAttachmentDownloadButton: true
 };
 export default defineComponent({
     name: 'VueOfficeExcel',

@@ -9,19 +9,8 @@
 export function downloadOLEObject(attachment) {
   console.log('[OLE-Downloader] 开始下载OLE对象:', attachment);
   
-  // 确定要下载的buffer
-  let buffer = null;
-  let extension = attachment.extension || 'bin';
-  
-  // 优先使用OLE解析后的数据
-  if (attachment.isOLE && attachment.parsed) {
-    buffer = attachment.parsed.buffer;
-    if (attachment.parsed.extension) {
-      extension = attachment.parsed.extension;
-    }
-  } else {
-    buffer = attachment.buffer;
-  }
+  const parsed = attachment.parsed || {};
+  const buffer = parsed.fileData || parsed.buffer || attachment.fileData || attachment.buffer;
   
   if (!buffer) {
     console.error('[OLE-Downloader] 没有可用的buffer');
@@ -29,16 +18,22 @@ export function downloadOLEObject(attachment) {
     return;
   }
   
-  // 构造文件名
-  let fileName = attachment.name || 'attachment';
-  // 确保文件名有正确的扩展名
-  if (!fileName.includes('.')) {
-    fileName = fileName + '.' + extension;
+  let fileName = parsed.shortFilename || parsed.originalName || attachment.name || 'attachment';
+  const fileNameExtension = getExtensionFromFileName(fileName);
+  let extension = normalizeExtension(parsed.extension || parsed.fileType || attachment.extension || fileNameExtension || 'bin');
+  if (isGenericExtension(extension) && fileNameExtension) {
+    extension = fileNameExtension;
+  }
+  const bufferExtension = detectExtensionFromBuffer(buffer);
+  
+  if (shouldUseBufferExtension(extension, bufferExtension, fileName)) {
+    extension = bufferExtension;
   }
   
-  console.log('[OLE-Downloader] 文件名:', fileName);
+  fileName = normalizeFileName(fileName, extension);
   
-  // 下载文件
+  console.log('[OLE-Downloader] 文件名:', fileName, 'MIME:', getMimeType(extension));
+  
   downloadBufferAsFile(buffer, fileName, getMimeType(extension));
 }
 
@@ -49,18 +44,15 @@ export function downloadOLEObject(attachment) {
  * @param {string} mimeType - MIME类型
  */
 export function downloadBufferAsFile(buffer, fileName, mimeType = 'application/octet-stream') {
-  // 创建Blob对象
-  let blob;
+  const bytes = toUint8Array(buffer);
   
-  if (buffer instanceof ArrayBuffer) {
-    blob = new Blob([buffer], { type: mimeType });
-  } else if (buffer instanceof Uint8Array) {
-    blob = new Blob([buffer], { type: mimeType });
-  } else {
-    // 假设是Node.js Buffer
-    const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
-    blob = new Blob([arrayBuffer], { type: mimeType });
+  if (!bytes || !bytes.length) {
+    console.error('[OLE-Downloader] buffer为空');
+    alert('无法下载：文件数据为空');
+    return;
   }
+  
+  const blob = new Blob([bytes], { type: mimeType });
   
   // 创建下载链接
   const url = URL.createObjectURL(blob);
@@ -80,6 +72,99 @@ export function downloadBufferAsFile(buffer, fileName, mimeType = 'application/o
   }, 100);
   
   console.log('[OLE-Downloader] 文件已触发下载');
+}
+
+function toUint8Array(buffer) {
+  if (!buffer) return null;
+  if (buffer instanceof Uint8Array) return buffer;
+  if (buffer instanceof ArrayBuffer) return new Uint8Array(buffer);
+  if (Array.isArray(buffer)) return new Uint8Array(buffer);
+  if (buffer.buffer instanceof ArrayBuffer && typeof buffer.byteOffset === 'number' && typeof buffer.byteLength === 'number') {
+    return new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  }
+  if (typeof buffer.length === 'number') {
+    const bytes = new Uint8Array(buffer.length);
+    for (let i = 0; i < buffer.length; i++) {
+      bytes[i] = buffer[i] & 0xff;
+    }
+    return bytes;
+  }
+  return null;
+}
+
+function normalizeExtension(extension) {
+  return String(extension || 'bin').split('?')[0].split('#')[0].replace(/^\.+/, '').toLowerCase() || 'bin';
+}
+
+function getExtensionFromFileName(fileName) {
+  const name = String(fileName || '').split(/[\\/]/).pop();
+  const dotIndex = name.lastIndexOf('.');
+  if (dotIndex <= 0 || dotIndex === name.length - 1) return '';
+  return normalizeExtension(name.slice(dotIndex + 1));
+}
+
+function isGenericExtension(extension) {
+  return !extension || extension === 'bin' || extension === 'ole' || extension === 'package' || extension === 'unknown' || extension === 'zip';
+}
+
+function normalizeFileName(fileName, extension) {
+  const ext = normalizeExtension(extension);
+  const currentExt = getExtensionFromFileName(fileName);
+  if (!currentExt) return fileName + '.' + ext;
+  if (currentExt === ext) return fileName;
+  if (isGenericExtension(currentExt)) return fileName.slice(0, -(currentExt.length + 1)) + '.' + ext;
+  return fileName;
+}
+
+function shouldUseBufferExtension(extension, bufferExtension, fileName) {
+  if (!bufferExtension) return false;
+  const ext = normalizeExtension(extension);
+  const bufferExt = normalizeExtension(bufferExtension);
+  const nameExt = getExtensionFromFileName(fileName);
+  if (ext === bufferExt) return false;
+  if ((ext === 'docx' || ext === 'pdf') && (bufferExt === 'zip' || isGenericExtension(bufferExt))) return false;
+  if (isGenericExtension(ext)) return true;
+  if (nameExt && normalizeExtension(nameExt) === ext) return false;
+  return bufferExt === 'xlsx' || bufferExt === 'docx' || bufferExt === 'pdf' || bufferExt === 'pptx';
+}
+
+function detectExtensionFromBuffer(buffer) {
+  const bytes = toUint8Array(buffer);
+  if (!bytes || bytes.length < 4) return '';
+  if (matchesSignature(bytes, [0x25, 0x50, 0x44, 0x46])) return 'pdf';
+  if (matchesSignature(bytes, [0x50, 0x4B, 0x03, 0x04])) return detectOfficeExtensionFromZip(bytes) || 'zip';
+  if (matchesSignature(bytes, [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1])) return 'ole';
+  return '';
+}
+
+function matchesSignature(bytes, signature) {
+  if (bytes.length < signature.length) return false;
+  for (let i = 0; i < signature.length; i++) {
+    if (bytes[i] !== signature[i]) return false;
+  }
+  return true;
+}
+
+function detectOfficeExtensionFromZip(bytes) {
+  const searchLength = Math.min(bytes.length, 20000);
+  if (containsPattern(bytes, [0x78, 0x6C, 0x2F], searchLength)) return 'xlsx';
+  if (containsPattern(bytes, [0x77, 0x6F, 0x72, 0x64, 0x2F], searchLength)) return 'docx';
+  if (containsPattern(bytes, [0x70, 0x70, 0x74, 0x2F], searchLength)) return 'pptx';
+  return '';
+}
+
+function containsPattern(bytes, pattern, searchLength) {
+  for (let i = 0; i <= searchLength - pattern.length; i++) {
+    let matched = true;
+    for (let j = 0; j < pattern.length; j++) {
+      if (bytes[i + j] !== pattern[j]) {
+        matched = false;
+        break;
+      }
+    }
+    if (matched) return true;
+  }
+  return false;
 }
 
 /**
@@ -121,7 +206,7 @@ export function getMimeType(extension) {
     'ole': 'application/x-oleobject'
   };
   
-  const ext = extension.toLowerCase();
+  const ext = normalizeExtension(extension);
   return mimeTypeMap[ext] || 'application/octet-stream';
 }
 

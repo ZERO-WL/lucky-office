@@ -225,6 +225,300 @@ function formatNumberByNumFmt(value, numFmt){
     }
 }
 
+function isFormulaResultAvailable(value){
+    return value && Object.prototype.hasOwnProperty.call(value, 'result') && value.result !== undefined;
+}
+
+function columnNameToNumber(name){
+    return name.toUpperCase().split('').reduce((result, char) => result * 26 + char.charCodeAt(0) - 64, 0);
+}
+
+function columnNumberToName(number){
+    let result = '';
+    while(number > 0){
+        const mod = (number - 1) % 26;
+        result = String.fromCharCode(65 + mod) + result;
+        number = Math.floor((number - mod) / 26);
+    }
+    return result;
+}
+
+function parseCellAddress(address){
+    const match = /^\$?([A-Z]+)\$?(\d+)$/i.exec(address || '');
+    if(!match){
+        return null;
+    }
+    return {
+        col: columnNameToNumber(match[1]),
+        row: parseInt(match[2], 10)
+    };
+}
+
+function normalizeFormulaSheetName(name){
+    return (name || '').replace(/^'/, '').replace(/'$/, '').replace(/''/g, "'");
+}
+
+function flattenFormulaValues(value){
+    if(Array.isArray(value)){
+        return value.reduce((result, item) => result.concat(flattenFormulaValues(item)), []);
+    }
+    return [value];
+}
+
+function toFormulaNumber(value){
+    if(value === '' || value === null || value === undefined){
+        return 0;
+    }
+    if(typeof value === 'boolean'){
+        return value ? 1 : 0;
+    }
+    const number = Number(value);
+    return Number.isNaN(number) ? 0 : number;
+}
+
+function splitFormulaArgs(content){
+    const args = [];
+    let current = '';
+    let depth = 0;
+    let inString = false;
+    for(let i = 0; i < content.length; i++){
+        const char = content[i];
+        if(char === '"'){
+            inString = !inString;
+            current += char;
+            continue;
+        }
+        if(!inString){
+            if(char === '('){
+                depth++;
+            }else if(char === ')'){
+                depth--;
+            }else if(char === ',' && depth === 0){
+                args.push(current.trim());
+                current = '';
+                continue;
+            }
+        }
+        current += char;
+    }
+    args.push(current.trim());
+    return args;
+}
+
+function findTopLevelOperator(expression, operators){
+    let depth = 0;
+    let inString = false;
+    for(let i = expression.length - 1; i >= 0; i--){
+        const char = expression[i];
+        if(char === '"'){
+            inString = !inString;
+            continue;
+        }
+        if(inString){
+            continue;
+        }
+        if(char === ')'){
+            depth++;
+            continue;
+        }
+        if(char === '('){
+            depth--;
+            continue;
+        }
+        if(depth !== 0){
+            continue;
+        }
+        for(const operator of operators){
+            const start = i - operator.length + 1;
+            if(start < 0){
+                continue;
+            }
+            if(expression.slice(start, i + 1) === operator){
+                if((operator === '+' || operator === '-') && (start === 0 || '+-*/=<>,('.includes(expression[start - 1]))){
+                    continue;
+                }
+                return {operator, index: start};
+            }
+        }
+    }
+    return null;
+}
+
+function parseFormulaReference(expression){
+    const match = /^(?:(('[^']+'|[^'!(),+\-*/=<>]+)!)?)((?:\$?[A-Z]+\$?\d+)(?::(?:\$?[A-Z]+\$?\d+))?)$/i.exec(expression);
+    if(!match){
+        return null;
+    }
+    return {
+        sheetName: match[2] ? normalizeFormulaSheetName(match[2]) : null,
+        range: match[3].replace(/\$/g, '')
+    };
+}
+
+function createFormulaEvaluator(workbook){
+    const cache = new Map();
+    const evaluating = new Set();
+    function getSheet(sheetName, currentSheet){
+        if(!sheetName){
+            return currentSheet;
+        }
+        return workbook.getWorksheet(sheetName) || workbook.worksheets.find(sheet => sheet.name === sheetName);
+    }
+    function readRange(reference, currentSheet){
+        const sheet = getSheet(reference.sheetName, currentSheet);
+        if(!sheet){
+            return [];
+        }
+        const parts = reference.range.split(':');
+        const start = parseCellAddress(parts[0]);
+        const end = parseCellAddress(parts[1] || parts[0]);
+        if(!start || !end){
+            return [];
+        }
+        const values = [];
+        const startRow = Math.min(start.row, end.row);
+        const endRow = Math.max(start.row, end.row);
+        const startCol = Math.min(start.col, end.col);
+        const endCol = Math.max(start.col, end.col);
+        for(let row = startRow; row <= endRow; row++){
+            const rowValues = [];
+            for(let col = startCol; col <= endCol; col++){
+                rowValues.push(evaluateCell(sheet.getCell(`${columnNumberToName(col)}${row}`), sheet));
+            }
+            values.push(rowValues);
+        }
+        if(startRow === endRow && startCol === endCol){
+            return values[0][0];
+        }
+        return values;
+    }
+    function evaluateCell(cell, sheet){
+        if(!cell){
+            return '';
+        }
+        const key = `${sheet && sheet.name}!${cell.address}`;
+        if(cache.has(key)){
+            return cache.get(key);
+        }
+        if(evaluating.has(key)){
+            return undefined;
+        }
+        evaluating.add(key);
+        let result;
+        const {type, value} = cell;
+        if(type === 6 && value && value.formula){
+            if(isFormulaResultAvailable(value)){
+                result = value.result;
+            }else{
+                result = evaluateFormula(value.formula, sheet);
+            }
+        }else if(value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, 'result')){
+            result = value.result;
+        }else if(value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, 'text')){
+            result = value.text;
+        }else if(value === null || value === undefined){
+            result = '';
+        }else{
+            result = value;
+        }
+        evaluating.delete(key);
+        cache.set(key, result);
+        return result;
+    }
+    function evaluateFunction(name, args, currentSheet){
+        const upperName = name.toUpperCase();
+        if(upperName === 'IF'){
+            return evaluateExpression(args[0], currentSheet) ? evaluateExpression(args[1], currentSheet) : evaluateExpression(args[2], currentSheet);
+        }
+        if(upperName === 'OR'){
+            return args.some(arg => !!evaluateExpression(arg, currentSheet));
+        }
+        if(upperName === 'AND'){
+            return args.every(arg => !!evaluateExpression(arg, currentSheet));
+        }
+        if(upperName === 'SUM'){
+            return args.reduce((total, arg) => total + flattenFormulaValues(evaluateExpression(arg, currentSheet)).reduce((sum, value) => sum + toFormulaNumber(value), 0), 0);
+        }
+        if(upperName === 'COUNTBLANK'){
+            return args.reduce((total, arg) => total + flattenFormulaValues(evaluateExpression(arg, currentSheet)).filter(value => value === '' || value === null || value === undefined).length, 0);
+        }
+        if(upperName === 'SUMPRODUCT'){
+            const ranges = args.map(arg => flattenFormulaValues(evaluateExpression(arg, currentSheet)));
+            const length = Math.max(...ranges.map(range => range.length));
+            let total = 0;
+            for(let i = 0; i < length; i++){
+                total += ranges.reduce((product, range) => product * toFormulaNumber(range[i]), 1);
+            }
+            return total;
+        }
+        return undefined;
+    }
+    function evaluateExpression(expression, currentSheet){
+        if(expression === undefined){
+            return undefined;
+        }
+        expression = String(expression).trim();
+        if(expression.startsWith('=')){
+            expression = expression.slice(1);
+        }
+        if(expression === ''){
+            return '';
+        }
+        if(expression[0] === '"' && expression[expression.length - 1] === '"'){
+            return expression.slice(1, -1).replace(/""/g, '"');
+        }
+        if(/^[-+]?\d+(\.\d+)?$/.test(expression)){
+            return Number(expression);
+        }
+        if(expression[0] === '(' && expression[expression.length - 1] === ')'){
+            return evaluateExpression(expression.slice(1, -1), currentSheet);
+        }
+        const comparison = findTopLevelOperator(expression, ['>=', '<=', '<>', '=', '>', '<']);
+        if(comparison){
+            const left = evaluateExpression(expression.slice(0, comparison.index), currentSheet);
+            const right = evaluateExpression(expression.slice(comparison.index + comparison.operator.length), currentSheet);
+            switch(comparison.operator){
+                case '=': return left == right;
+                case '<>': return left != right;
+                case '>': return toFormulaNumber(left) > toFormulaNumber(right);
+                case '<': return toFormulaNumber(left) < toFormulaNumber(right);
+                case '>=': return toFormulaNumber(left) >= toFormulaNumber(right);
+                case '<=': return toFormulaNumber(left) <= toFormulaNumber(right);
+            }
+        }
+        const additive = findTopLevelOperator(expression, ['+', '-']);
+        if(additive){
+            const left = toFormulaNumber(evaluateExpression(expression.slice(0, additive.index), currentSheet));
+            const right = toFormulaNumber(evaluateExpression(expression.slice(additive.index + additive.operator.length), currentSheet));
+            return additive.operator === '+' ? left + right : left - right;
+        }
+        const multiplicative = findTopLevelOperator(expression, ['*', '/']);
+        if(multiplicative){
+            const left = toFormulaNumber(evaluateExpression(expression.slice(0, multiplicative.index), currentSheet));
+            const right = toFormulaNumber(evaluateExpression(expression.slice(multiplicative.index + multiplicative.operator.length), currentSheet));
+            return multiplicative.operator === '*' ? left * right : left / right;
+        }
+        const functionMatch = /^([A-Z][A-Z0-9.]*)\((.*)\)$/i.exec(expression);
+        if(functionMatch){
+            return evaluateFunction(functionMatch[1], splitFormulaArgs(functionMatch[2]), currentSheet);
+        }
+        const reference = parseFormulaReference(expression);
+        if(reference){
+            return readRange(reference, currentSheet);
+        }
+        return undefined;
+    }
+    function evaluateFormula(formula, sheet){
+        try {
+            return evaluateExpression(formula, sheet);
+        } catch (e) {
+            console.warn(e);
+            return undefined;
+        }
+    }
+    return {evaluateCell, evaluateFormula};
+}
+
 function formatDateByNumFmt(value, numFmt){
     switch (numFmt){
         case 'yyyy-mm-dd;@':
@@ -256,7 +550,7 @@ function formatCellValueByNumFmt(cell, value){
     return value;
 }
 
-function getCellText(cell){
+function getCellText(cell, sheet, formulaEvaluator){
     //console.log(cell);
     let {value, type} = cell;
     switch (type){
@@ -273,7 +567,8 @@ function getCellText(cell){
             if(error){
                 return error;
             }
-            return formatCellValueByNumFmt(cell, value.result);
+            const result = isFormulaResultAvailable(value) ? value.result : (formulaEvaluator && value && value.formula ? formulaEvaluator.evaluateCell(cell, sheet) : value.result);
+            return formatCellValueByNumFmt(cell, result);
         }
         case 8: //富文本
             return cell.text;
@@ -417,7 +712,7 @@ function collectMergeAddressData(sheet, sheetData){
     return mergeAddressData;
 }
 
-function transferRowsRange(sheet, sheetData, mergeAddressData, options, startRow, endRow, initialEffectiveMaxColLen = 0){
+function transferRowsRange(sheet, sheetData, mergeAddressData, options, startRow, endRow, initialEffectiveMaxColLen = 0, formulaEvaluator){
     let effectiveMaxColLen = initialEffectiveMaxColLen;
     const rows = sheet._rows || [];
     const safeStartRow = Math.max(startRow || 0, 0);
@@ -447,7 +742,7 @@ function transferRowsRange(sheet, sheetData, mergeAddressData, options, startRow
             if(mergeAddress){
                 sheetData.rows[spreadSheetRowIndex].cells[spreadSheetColIndex].merge = [mergeAddress.YRange, mergeAddress.XRange];
             }
-            sheetData.rows[spreadSheetRowIndex].cells[spreadSheetColIndex].text = getCellText(cell);
+            sheetData.rows[spreadSheetRowIndex].cells[spreadSheetColIndex].text = getCellText(cell, sheet, formulaEvaluator);
             sheetData.styles.push(getStyle(cell));
             sheetData.rows[spreadSheetRowIndex].cells[spreadSheetColIndex].style = sheetData.styles.length - 1;
         });
@@ -513,6 +808,7 @@ function yieldMainThread(){
 export async function transferExcelToSpreadSheet(workbook, options){
     let workbookData = [];
     let sheets = [];
+    const formulaEvaluator = createFormulaEvaluator(workbook);
     
     // 收集需要异步提取 docProps title 的附件任务
     const docPropsTasks = [];
@@ -656,7 +952,7 @@ export async function transferExcelToSpreadSheet(workbook, options){
         }
         
         const mergeAddressData = collectMergeAddressData(sheet, sheetData);
-        const effectiveMaxColLen = transferRowsRange(sheet, sheetData, mergeAddressData, options, 0);
+        const effectiveMaxColLen = transferRowsRange(sheet, sheetData, mergeAddressData, options, 0, undefined, 0, formulaEvaluator);
         
         console.log(`[附件] ${sheet.name} 最终附件数量:`, sheetAttachments.length);
         sheetAttachments.forEach((att, idx) => {
@@ -681,6 +977,7 @@ export async function transferExcelToSpreadSheet(workbook, options){
 
 export async function transferExcelToSpreadSheetProgressive(workbook, options = {}){
     const progressiveOptions = getProgressiveOptions(options);
+    const formulaEvaluator = createFormulaEvaluator(workbook);
     let workbookData = [];
     let sheets = [];
     const docPropsTasks = [];
@@ -786,7 +1083,7 @@ export async function transferExcelToSpreadSheetProgressive(workbook, options = 
         const mergeAddressData = collectMergeAddressData(sheet, sheetData);
         const totalRows = (sheet._rows || []).length;
         const initialEndRow = Math.min(progressiveOptions.initialRows, totalRows);
-        const effectiveMaxColLen = transferRowsRange(sheet, sheetData, mergeAddressData, options, 0, initialEndRow);
+        const effectiveMaxColLen = transferRowsRange(sheet, sheetData, mergeAddressData, options, 0, initialEndRow, 0, formulaEvaluator);
         sheetData.attachments = sheetAttachments;
         finalizeSheetData(sheet, sheetData, options, effectiveMaxColLen, totalRows, false);
         workbookData.push(sheetData);
@@ -807,7 +1104,7 @@ export async function transferExcelToSpreadSheetProgressive(workbook, options = 
         while(state.convertedRows < state.totalRows){
             const startRow = state.convertedRows;
             const endRow = Math.min(startRow + progressiveOptions.batchRows, state.totalRows);
-            state.effectiveMaxColLen = transferRowsRange(state.sheet, state.sheetData, state.mergeAddressData, options, startRow, endRow, state.effectiveMaxColLen);
+            state.effectiveMaxColLen = transferRowsRange(state.sheet, state.sheetData, state.mergeAddressData, options, startRow, endRow, state.effectiveMaxColLen, formulaEvaluator);
             state.convertedRows = endRow;
             finalizeSheetData(state.sheet, state.sheetData, options, state.effectiveMaxColLen, state.totalRows, false);
             callProgressiveHook(progressiveOptions.onProgress, {
