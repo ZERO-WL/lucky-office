@@ -1,5 +1,12 @@
 # lucky-office
 
+## 1.0.3
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @lucky-office/exceljs@0.3.2
+
 ## 1.0.2
 
 ### Patch Changes
